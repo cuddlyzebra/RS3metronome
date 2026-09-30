@@ -20,7 +20,7 @@
       <div id="tick-target-label" class="tick-target-label"></div>
     </div>
     <div class="transport">
-      <button class="primary" id="start-stop-btn">Start</button>
+      <button class="primary" id="start-stop-btn" title="Also starts watching your calibrated RuneMetrics tab and syncs the instant it catches an update">Start</button>
     </div>
   </fieldset>
 
@@ -60,9 +60,9 @@
   </fieldset>
 
   <fieldset>
-    <legend>Auto-sync from RuneMetrics (experimental)</legend>
+    <legend>Sync from RuneMetrics (experimental)</legend>
     <div class="footer-note">
-      Watches your RuneMetrics tab for the pixel change that happens the instant it updates, and lets you re-sync the metronome to that moment on demand. RuneMetrics only ever updates on a game tick, and it doesn't matter which value moves -- open it (F7, if that's not bound to anything else) with "Show precise values" and "Show XP change value" on, and calibrate a box wide/tall enough to cover the panel. This works at any level, including 200m XP.
+      Watches your RuneMetrics tab for the pixel change that happens the instant it updates, and syncs the metronome to that moment. RuneMetrics only ever updates on a game tick, and it doesn't matter which value moves -- open it (F7, if that's not bound to anything else) with "Show precise values" and "Show XP change value" on, and calibrate a box wide/tall enough to cover the panel. This works at any level, including 200m XP.
     </div>
     <div class="setting-row">
       <label for="xp-width">Spot size (px)</label>
@@ -73,6 +73,7 @@
     </div>
     <div class="hint-text">Set the size above first (widen it to cover the whole RuneMetrics panel), then click below and hover it in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
     <button id="calibrate-xp-btn">Calibrate RuneMetrics tab (hover)...</button>
+    <div class="hint-text">Once calibrated, hitting "Start" above automatically watches for the next update and syncs to it -- no extra step needed. Use the button below to re-sync later on demand, e.g. if the count has drifted.</div>
     <button id="xp-sync-once-btn">Sync now from XP/RuneMetrics</button>
     <div id="xp-autosync-status" class="footer-note"></div>
   </fieldset>

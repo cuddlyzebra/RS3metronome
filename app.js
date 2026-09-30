@@ -121,11 +121,18 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // --- transport ---
+  // Starting also arms a one-shot RuneMetrics sync automatically -- the
+  // metronome runs freely the instant you hit Start, and locks onto the
+  // real tick boundary as soon as it catches the next RuneMetrics
+  // update, with no separate "Sync now" click needed for a fresh start.
+  // "Sync now from XP/RuneMetrics" still exists to re-align it later if
+  // it's drifted, without having to stop and start again.
   function setRunning(running) {
     if (running) {
       engine.start();
       startStopBtn.textContent = "Stop";
       startStopBtn.classList.add("running");
+      startXpSyncOnce();
     } else {
       engine.stop();
       startStopBtn.textContent = "Start";
@@ -134,6 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tickFace.classList.remove("pulse", "pulse-accent");
       flashOverlay.classList.remove("flash", "flash-accent");
       overlay.clear();
+      if (xpSyncWaiting) stopXpSyncOnce("Stopped.");
     }
   }
 
@@ -426,6 +434,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // with the player's own tick timing and made the count look like it
   // kept "resetting" instead of counting properly. One-shot avoids that
   // by only ever catching exactly one change per click.
+  //
+  // setRunning() also calls this automatically the moment Start is
+  // clicked, so a fresh start doesn't need a separate manual sync step.
+  // "Sync now from XP/RuneMetrics" remains as a way to re-arm it later
+  // on demand, e.g. to correct drift without stopping and restarting.
   //
   // The trigger threshold is set to fire on *any* detected change in the
   // watched box, however small, rather than requiring a big, obvious
