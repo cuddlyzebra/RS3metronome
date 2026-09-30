@@ -59,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const accentCheckbox = document.getElementById("accent-checkbox");
   const syncOffsetInput = document.getElementById("sync-offset-input");
   const calibrateXpBtn = document.getElementById("calibrate-xp-btn");
-  const xpSyncOnceBtn = document.getElementById("xp-sync-once-btn");
   const xpAutosyncStatus = document.getElementById("xp-autosync-status");
   const generalStatus = document.getElementById("general-status");
 
@@ -123,10 +122,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- transport ---
   // Starting also arms a one-shot RuneMetrics sync automatically -- the
   // metronome runs freely the instant you hit Start, and locks onto the
-  // real tick boundary as soon as it catches the next RuneMetrics
-  // update, with no separate "Sync now" click needed for a fresh start.
-  // "Sync now from XP/RuneMetrics" still exists to re-align it later if
-  // it's drifted, without having to stop and start again.
+  // real tick boundary as soon as it catches the next change at the
+  // calibrated spot. There's no separate sync button: to re-align a
+  // drifted count later, Stop then Start again.
   function setRunning(running) {
     if (running) {
       engine.start();
@@ -415,7 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
         h,
       };
       saveCalibration(XP_CALIBRATION_KEY, region);
-      stopRegionHover('Calibrated. Click "Sync now" whenever you want to re-sync from it.');
+      stopRegionHover("Calibrated. Hit Start to sync to it.");
     }, 1000);
   }
 
@@ -433,12 +431,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // highlighting on mouse hover, the scrollbar), which had nothing to do
   // with the player's own tick timing and made the count look like it
   // kept "resetting" instead of counting properly. One-shot avoids that
-  // by only ever catching exactly one change per click.
+  // by only ever catching exactly one change per arm.
   //
-  // setRunning() also calls this automatically the moment Start is
-  // clicked, so a fresh start doesn't need a separate manual sync step.
-  // "Sync now from XP/RuneMetrics" remains as a way to re-arm it later
-  // on demand, e.g. to correct drift without stopping and restarting.
+  // There's no separate "sync" button: setRunning() calls this
+  // automatically the moment Start is clicked (and stopping cancels it
+  // again), so the only two steps a player does are calibrate once, then
+  // hit Start each time they want to (re-)sync and begin counting.
   //
   // The trigger threshold is set to fire on *any* detected change in the
   // watched box, however small, rather than requiring a big, obvious
@@ -461,19 +459,17 @@ document.addEventListener("DOMContentLoaded", () => {
       clearTimeout(xpSyncTimeoutId);
       xpSyncTimeoutId = null;
     }
-    xpSyncOnceBtn.textContent = "Sync now from XP/RuneMetrics";
     if (status !== undefined) xpAutoSyncStatusText(status);
   }
 
   function startXpSyncOnce() {
     const region = loadCalibration(XP_CALIBRATION_KEY);
     if (!region) {
-      xpAutoSyncStatusText("Calibrate the RuneMetrics tab first.");
+      xpAutoSyncStatusText("Calibrate the RuneMetrics tab first (Step 1).");
       return;
     }
     xpSyncWaiting = true;
-    xpSyncOnceBtn.textContent = "Cancel (waiting for next update...)";
-    xpAutoSyncStatusText("Watching -- do the action you want to sync to now.");
+    xpAutoSyncStatusText("Watching your calibrated spot for the next change...");
     xpWatcher = new AutoSyncWatcher(
       region,
       () => {
@@ -486,20 +482,12 @@ document.addEventListener("DOMContentLoaded", () => {
     xpWatcher.triggerCount = 0; // fire on any detected change at all, not just a big one
     xpWatcher.start();
     xpSyncTimeoutId = setTimeout(() => {
-      stopXpSyncOnce("Didn't catch an update in time -- make sure RuneMetrics is visible and try again.");
+      stopXpSyncOnce("Didn't catch a change in time -- make sure the calibrated spot is actually updating with numbers, then Stop and Start again.");
     }, XP_SYNC_TIMEOUT_MS);
   }
 
-  xpSyncOnceBtn.addEventListener("click", () => {
-    if (xpSyncWaiting) {
-      stopXpSyncOnce("Cancelled.");
-    } else {
-      startXpSyncOnce();
-    }
-  });
-
   {
     const existingXp = loadCalibration(XP_CALIBRATION_KEY);
-    xpAutoSyncStatusText(existingXp ? "Calibrated. Click \"Sync now\" whenever you want to re-sync from it." : "Not calibrated yet.");
+    xpAutoSyncStatusText(existingXp ? "Calibrated. Hit Start to sync to it." : "Not calibrated yet.");
   }
 });

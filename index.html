@@ -14,13 +14,34 @@
 
   <div id="flash-overlay"></div>
 
+  <fieldset>
+    <legend>Step 1: Point at a spot that's updating</legend>
+    <div class="footer-note">
+      Open your RuneMetrics tab in-game (F7, if that's not bound to anything else) with <strong>"Show precise values"</strong> and <strong>"Show XP change value"</strong> turned on, so its numbers are actually changing. Then hover over a section that's actively updating -- usually the <strong>XP/hr column</strong> for whatever skill you're training. RuneMetrics only ever updates on a game tick, so any changing number there works as a sync point; it doesn't matter which one.
+    </div>
+    <div class="setting-row">
+      <label for="xp-width">Box size (px)</label>
+      <input type="number" id="xp-width" min="8" max="800" value="50" />
+      <span class="hint-text">width</span>
+      <input type="number" id="xp-height" min="8" max="800" value="50" />
+      <span class="hint-text">height</span>
+    </div>
+    <div class="hint-text">Adjust the size above if needed, then click below and hover your mouse over that changing spot in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
+    <button id="calibrate-xp-btn">Calibrate RuneMetrics tab (hover)...</button>
+    <div id="xp-autosync-status" class="footer-note"></div>
+  </fieldset>
+
   <fieldset class="main-display">
+    <legend>Step 2: Start</legend>
+    <div class="footer-note">
+      Syncs to the next change at the spot from Step 1, then counts ticks from there.
+    </div>
     <div id="tick-face" class="tick-face">
       <div id="tick-count" class="tick-count">0</div>
       <div id="tick-target-label" class="tick-target-label"></div>
     </div>
     <div class="transport">
-      <button class="primary" id="start-stop-btn" title="Also starts watching your calibrated RuneMetrics tab and syncs the instant it catches an update">Start</button>
+      <button class="primary" id="start-stop-btn">Start</button>
     </div>
   </fieldset>
 
@@ -57,25 +78,6 @@
       <input type="number" id="sync-offset-input" min="-600" max="600" step="10" value="0" />
     </div>
     <div class="hint-text offset-hint">Shifts exactly when a RuneMetrics sync lands. If it consistently lands a tick late (RuneMetrics confirms slightly after the fact), lower this.</div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Sync from RuneMetrics (experimental)</legend>
-    <div class="footer-note">
-      Watches your RuneMetrics tab for the pixel change that happens the instant it updates, and syncs the metronome to that moment. RuneMetrics only ever updates on a game tick, and it doesn't matter which value moves -- open it (F7, if that's not bound to anything else) with "Show precise values" and "Show XP change value" on, and calibrate a box wide/tall enough to cover the panel. This works at any level, including 200m XP.
-    </div>
-    <div class="setting-row">
-      <label for="xp-width">Spot size (px)</label>
-      <input type="number" id="xp-width" min="8" max="800" value="50" />
-      <span class="hint-text">width</span>
-      <input type="number" id="xp-height" min="8" max="800" value="50" />
-      <span class="hint-text">height</span>
-    </div>
-    <div class="hint-text">Set the size above first (widen it to cover the whole RuneMetrics panel), then click below and hover it in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
-    <button id="calibrate-xp-btn">Calibrate RuneMetrics tab (hover)...</button>
-    <div class="hint-text">Once calibrated, hitting "Start" above automatically watches for the next update and syncs to it -- no extra step needed. Use the button below to re-sync later on demand, e.g. if the count has drifted.</div>
-    <button id="xp-sync-once-btn">Sync now from XP/RuneMetrics</button>
-    <div id="xp-autosync-status" class="footer-note"></div>
   </fieldset>
 
   <fieldset>

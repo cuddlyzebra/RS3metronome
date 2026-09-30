@@ -10,11 +10,12 @@
 // Any value updating in the RuneMetrics tab -- an XP total, an XP/h
 // rate, anything -- only ever happens on a game tick, which is what
 // makes it useful as a sync source: it doesn't matter which number
-// moves, only that *something* in the panel did. That's also why it can
-// be calibrated loosely -- watching the *whole panel* rather than one
-// exact row works fine, and a changed-sample count (rather than an
-// average over the region) stays sensitive to a small patch of updated
-// digits even inside a much bigger watched box.
+// moves, only that *something* in the calibrated box did. That's also
+// why calibration can be loose -- the player points it at whatever's
+// visibly updating (usually the XP/hr column) rather than one exact
+// pixel, and a changed-sample count (rather than an average over the
+// region) stays sensitive to a small patch of updated digits even
+// inside a wider box.
 //
 // Since RuneMetrics' position and UI scale are up to each player,
 // there's no fixed landmark to hard-code -- this asks the player to
@@ -23,13 +24,14 @@
 // in-game preview rect so they can see the watched box before it locks
 // in).
 //
-// This is used one-shot rather than continuously (app.js arms it, waits
-// for the next detected change, then disarms itself): watching a whole
+// This is used one-shot rather than continuously (app.js's Start button
+// arms it, waits for the next detected change, then disarms itself):
+// watching a whole
 // RuneMetrics panel continuously turned out to false-trigger on
 // anything that changed in it for reasons unrelated to the moment you
 // actually want to sync to, and made the count look like it kept
 // resetting rather than counting properly. One-shot avoids that by only
-// ever catching exactly one change per click -- and since practically
+// ever catching exactly one change per Start -- and since practically
 // any change in the panel is itself a valid tick signal, the watcher is
 // tuned (see app.js) to fire on the very first detected change at all,
 // however small.
