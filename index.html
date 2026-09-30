@@ -61,7 +61,20 @@
   </fieldset>
 
   <fieldset>
-    <legend>Auto-sync (experimental)</legend>
+    <legend>Auto-sync from XP drop (experimental)</legend>
+    <div class="footer-note">
+      Watches a small region of your screen for the sudden pixel change that happens the instant an XP drop appears, and re-syncs the metronome to that moment automatically. Calibrate this on a screen-fixed spot -- your XP orb near the top of screen, or the "+xp" popup in the RuneMetrics tab (with "Show precise values" and "Show XP change value" on) -- never the text that floats above your character, which moves with the camera and won't work here. Needs a one-time calibration since everyone's UI scale and layout differs.
+    </div>
+    <button id="calibrate-xp-btn">Calibrate XP orb/indicator...</button>
+    <label class="checkbox-row">
+      <input type="checkbox" id="xp-autosync-checkbox" />
+      Enable auto-sync from XP drop
+    </label>
+    <div id="xp-autosync-status" class="footer-note"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Auto-sync from ability GCD (experimental)</legend>
     <div class="footer-note">
       Watches a small region of your screen for the sudden pixel change that happens the instant an ability's GCD cooldown starts sweeping across its icon, and re-syncs the metronome phase to that moment automatically. Needs a one-time calibration since everyone's ability bar sits somewhere different.
     </div>
@@ -112,8 +125,11 @@
         <button id="calibration-zoom-reset-btn">Reset zoom</button>
       </div>
       <div class="setting-row" id="calibration-size-row">
-        <label for="calibration-size">Slot size (px)</label>
-        <input type="number" id="calibration-size" min="12" max="120" value="34" />
+        <label for="calibration-width">Spot size (px)</label>
+        <input type="number" id="calibration-width" min="8" max="400" value="34" />
+        <span class="hint-text">width</span>
+        <input type="number" id="calibration-height" min="8" max="400" value="34" />
+        <span class="hint-text">height</span>
       </div>
       <div class="modal-buttons">
         <button id="calibration-cancel-btn">Cancel</button>

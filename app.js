@@ -1,12 +1,15 @@
 // Wires the tick engine, audio, visuals, overlay and settings together.
 
 const SETTINGS_KEY = "rs3metronome.settings";
+const ABILITY_CALIBRATION_KEY = "rs3metronome.autosync.region";
+const XP_CALIBRATION_KEY = "rs3metronome.autosync.xpregion";
 const DEFAULT_SETTINGS = {
   mode: "both", // "both" | "visual" | "audio"
   tickTarget: 3, // e.g. 3 for the 1.8s/3-tick GCD
   volume: 70,
   accent: true,
   autosyncEnabled: false,
+  xpAutosyncEnabled: false,
   syncOffsetMs: 0, // shifts when a detected sync point actually lands, +later / -earlier
   overlayEnabled: false,
   overlaySize: 28,
@@ -51,7 +54,8 @@ document.addEventListener("DOMContentLoaded", () => {
   overlay.setSize(settings.overlaySize);
   overlay.setColorName(settings.overlayColor);
 
-  let autoWatcher = null;
+  let abilityWatcher = null;
+  let xpWatcher = null;
 
   // --- element refs ---
   const startStopBtn = document.getElementById("start-stop-btn");
@@ -68,6 +72,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const calibrateBtn = document.getElementById("calibrate-btn");
   const autosyncCheckbox = document.getElementById("autosync-checkbox");
   const autosyncStatus = document.getElementById("autosync-status");
+  const calibrateXpBtn = document.getElementById("calibrate-xp-btn");
+  const xpAutosyncCheckbox = document.getElementById("xp-autosync-checkbox");
+  const xpAutosyncStatus = document.getElementById("xp-autosync-status");
   const generalStatus = document.getElementById("general-status");
 
   const placeOverlayBtn = document.getElementById("place-overlay-btn");
@@ -81,7 +88,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const calibrationTitle = document.getElementById("calibration-title");
   const calibrationHint = document.getElementById("calibration-hint");
   const calibrationSizeRow = document.getElementById("calibration-size-row");
-  const calibrationSize = document.getElementById("calibration-size");
+  const calibrationWidth = document.getElementById("calibration-width");
+  const calibrationHeight = document.getElementById("calibration-height");
   const calibrationCancelBtn = document.getElementById("calibration-cancel-btn");
   const calibrationRecaptureBtn = document.getElementById("calibration-recapture-btn");
   const calibrationZoomLabel = document.getElementById("calibration-zoom-label");
@@ -94,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
   accentCheckbox.checked = settings.accent;
   syncOffsetInput.value = settings.syncOffsetMs;
   autosyncCheckbox.checked = settings.autosyncEnabled;
+  xpAutosyncCheckbox.checked = settings.xpAutosyncEnabled;
   overlayEnabledCheckbox.checked = settings.overlayEnabled;
   overlaySizeInput.value = settings.overlaySize;
   overlayColorSelect.value = settings.overlayColor;
@@ -248,13 +257,13 @@ document.addEventListener("DOMContentLoaded", () => {
     overlayStatus.textContent = "Not positioned yet.";
   }
 
-  // --- auto-sync ---
+  // --- auto-sync (ability GCD) ---
   function autoSyncStatusText(text) {
     autosyncStatus.textContent = text;
   }
 
-  function startAutoWatcher() {
-    const region = loadCalibration();
+  function startAbilityWatcher() {
+    const region = loadCalibration(ABILITY_CALIBRATION_KEY);
     if (!region) {
       autoSyncStatusText("Calibrate an ability slot first.");
       autosyncCheckbox.checked = false;
@@ -262,19 +271,15 @@ document.addEventListener("DOMContentLoaded", () => {
       saveSettings(settings);
       return;
     }
-    if (autoWatcher) autoWatcher.stop();
-    autoWatcher = new AutoSyncWatcher(
-      region,
-      triggerSync,
-      autoSyncStatusText
-    );
-    autoWatcher.start();
+    if (abilityWatcher) abilityWatcher.stop();
+    abilityWatcher = new AutoSyncWatcher(region, triggerSync, autoSyncStatusText, "GCD");
+    abilityWatcher.start();
   }
 
-  function stopAutoWatcher() {
-    if (autoWatcher) {
-      autoWatcher.stop();
-      autoWatcher = null;
+  function stopAbilityWatcher() {
+    if (abilityWatcher) {
+      abilityWatcher.stop();
+      abilityWatcher = null;
     }
   }
 
@@ -282,28 +287,73 @@ document.addEventListener("DOMContentLoaded", () => {
     settings.autosyncEnabled = autosyncCheckbox.checked;
     saveSettings(settings);
     if (settings.autosyncEnabled) {
-      startAutoWatcher();
+      startAbilityWatcher();
     } else {
-      stopAutoWatcher();
+      stopAbilityWatcher();
       autoSyncStatusText("");
     }
   });
 
   if (settings.autosyncEnabled) {
-    startAutoWatcher();
+    startAbilityWatcher();
   } else {
-    const existing = loadCalibration();
+    const existing = loadCalibration(ABILITY_CALIBRATION_KEY);
     autoSyncStatusText(existing ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
   }
 
+  // --- auto-sync (XP drop) ---
+  function xpAutoSyncStatusText(text) {
+    xpAutosyncStatus.textContent = text;
+  }
+
+  function startXpWatcher() {
+    const region = loadCalibration(XP_CALIBRATION_KEY);
+    if (!region) {
+      xpAutoSyncStatusText("Calibrate your XP drop spot first.");
+      xpAutosyncCheckbox.checked = false;
+      settings.xpAutosyncEnabled = false;
+      saveSettings(settings);
+      return;
+    }
+    if (xpWatcher) xpWatcher.stop();
+    xpWatcher = new AutoSyncWatcher(region, triggerSync, xpAutoSyncStatusText, "XP drop");
+    xpWatcher.start();
+  }
+
+  function stopXpWatcher() {
+    if (xpWatcher) {
+      xpWatcher.stop();
+      xpWatcher = null;
+    }
+  }
+
+  xpAutosyncCheckbox.addEventListener("change", () => {
+    settings.xpAutosyncEnabled = xpAutosyncCheckbox.checked;
+    saveSettings(settings);
+    if (settings.xpAutosyncEnabled) {
+      startXpWatcher();
+    } else {
+      stopXpWatcher();
+      xpAutoSyncStatusText("");
+    }
+  });
+
+  if (settings.xpAutosyncEnabled) {
+    startXpWatcher();
+  } else {
+    const existingXp = loadCalibration(XP_CALIBRATION_KEY);
+    xpAutoSyncStatusText(existingXp ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
+  }
+
   // ==========================================================================
-  // Calibration modal -- shared by both the ability-slot region picker
-  // (auto-sync) and the overlay position picker, distinguished by `mode`.
+  // Calibration modal -- shared by the ability-slot region picker, the XP
+  // drop region picker (both auto-sync sources), and the overlay position
+  // picker, distinguished by `mode`.
   // ==========================================================================
 
   let calCapture = null; // { offCanvas, imgW, imgH, originX, originY }
   let calView = null; // { zoom, srcCenterX, srcCenterY, _last }
-  let calMode = "ability"; // "ability" | "overlay"
+  let calMode = "ability"; // "ability" | "xp" | "overlay"
 
   function calBaseScale() {
     return Math.min(CAL_VIEWPORT_W / calCapture.imgW, CAL_VIEWPORT_H / calCapture.imgH);
@@ -378,6 +428,14 @@ document.addEventListener("DOMContentLoaded", () => {
       calibrationTitle.textContent = "Click the center of your ability slot";
       calibrationHint.textContent = "This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). Scroll to zoom in on the cursor for a more precise click. You can re-run this any time your UI moves or rescales.";
       calibrationSizeRow.style.display = "";
+      calibrationWidth.value = 34;
+      calibrationHeight.value = 34;
+    } else if (mode === "xp") {
+      calibrationTitle.textContent = "Click your fixed-position XP indicator (not the floating text)";
+      calibrationHint.textContent = "Don't click text that floats above your character -- it moves with the camera and won't work here. Best option: the '+xp' popup next to a skill's row in the RuneMetrics tab (open it with 'Show precise values' and 'Show XP change value' turned on) -- it keeps working at any level, including 200m XP. Your XP orb near the top of screen also works, but disappears once you're 120 in a skill and again at 200m. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
+      calibrationSizeRow.style.display = "";
+      calibrationWidth.value = 50;
+      calibrationHeight.value = 50;
     } else {
       calibrationTitle.textContent = "Click where you want the counter";
       calibrationHint.textContent = "Click the spot on screen where the transparent number should appear. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
@@ -395,6 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   calibrateBtn.addEventListener("click", () => openCalibration("ability"));
+  calibrateXpBtn.addEventListener("click", () => openCalibration("xp"));
   placeOverlayBtn.addEventListener("click", () => openCalibration("overlay"));
   calibrationCancelBtn.addEventListener("click", closeCalibration);
   calibrationRecaptureBtn.addEventListener("click", () => openCalibration(calMode));
@@ -443,18 +502,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const sourceX = m.srcX + (vx - m.destX) * (m.srcW / m.destW);
     const sourceY = m.srcY + (vy - m.destY) * (m.srcH / m.destH);
 
-    if (calMode === "ability") {
-      const size = Math.max(12, Math.min(120, parseInt(calibrationSize.value, 10) || 34));
+    if (calMode === "ability" || calMode === "xp") {
+      const w = Math.max(8, Math.min(400, parseInt(calibrationWidth.value, 10) || 34));
+      const h = Math.max(8, Math.min(400, parseInt(calibrationHeight.value, 10) || 34));
       const region = {
-        x: Math.round(calCapture.originX + sourceX - size / 2),
-        y: Math.round(calCapture.originY + sourceY - size / 2),
-        w: size,
-        h: size,
+        x: Math.round(calCapture.originX + sourceX - w / 2),
+        y: Math.round(calCapture.originY + sourceY - h / 2),
+        w,
+        h,
       };
-      saveCalibration(region);
-      closeCalibration();
-      autoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
-      if (settings.autosyncEnabled) startAutoWatcher();
+      if (calMode === "ability") {
+        saveCalibration(ABILITY_CALIBRATION_KEY, region);
+        closeCalibration();
+        autoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
+        if (settings.autosyncEnabled) startAbilityWatcher();
+      } else {
+        saveCalibration(XP_CALIBRATION_KEY, region);
+        closeCalibration();
+        xpAutoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
+        if (settings.xpAutosyncEnabled) startXpWatcher();
+      }
     } else {
       // Overlay coordinates are RS-window-relative, which is exactly what
       // the captured screenshot's own pixel offsets already are -- no

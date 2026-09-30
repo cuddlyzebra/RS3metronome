@@ -4,38 +4,44 @@
 // see an XP drop or a GCD start, the same technique real OSRS tick tools
 // use, and it works regardless of UI layout or scale.
 //
-// The experimental extra is auto-sync off the ability bar's GCD: the
-// instant an ability is used, RS3 sweeps a cooldown overlay across its
-// icon -- a large, sudden pixel change confined to that one icon. Unlike
-// an XP counter (which needs reading digits via OCR and doesn't tick
-// every game tick anyway), that's a simple "did this small region change
-// a lot" signal, cheap to poll. But since ability bar position and UI
-// scale are entirely up to each player, there's no fixed landmark to
-// hardcode -- this asks the player to calibrate it once by clicking their
-// own ability slot in a captured screenshot shown inside the app.
+// The experimental extras are two auto-sync sources, both built on the
+// same idea: watch a small, calibrated screen region for a sudden pixel
+// change, and treat that instant as the new tick 0. Neither needs to read
+// or understand what's actually there (no OCR) -- just "did this small
+// patch of screen suddenly look very different", which is cheap to poll
+// many times a second:
+//
+//   - An XP drop appearing is a small patch of screen going from empty
+//     (or whatever was behind it) to bright drop text, all at once.
+//   - A GCD starting sweeps a cooldown overlay across an ability's icon,
+//     a large, sudden change confined to that one icon.
+//
+// Since ability bar position, XP drop position, and UI scale are all up
+// to each player, there's no fixed landmark to hard-code for either --
+// this asks the player to calibrate once per source by clicking the spot
+// in a captured screenshot shown inside the app. Both calibrations are
+// stored under their own key so they don't overwrite each other.
 
-const CALIBRATION_KEY = "rs3metronome.autosync.region";
-
-function loadCalibration() {
+function loadCalibration(storageKey) {
   try {
-    const raw = localStorage.getItem(CALIBRATION_KEY);
+    const raw = localStorage.getItem(storageKey);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;
   }
 }
 
-function saveCalibration(region) {
+function saveCalibration(storageKey, region) {
   try {
-    localStorage.setItem(CALIBRATION_KEY, JSON.stringify(region));
+    localStorage.setItem(storageKey, JSON.stringify(region));
   } catch (e) {
     // storage unavailable -- calibration just won't persist across reloads
   }
 }
 
-function clearCalibration() {
+function clearCalibration(storageKey) {
   try {
-    localStorage.removeItem(CALIBRATION_KEY);
+    localStorage.removeItem(storageKey);
   } catch (e) {
     // ignore
   }
@@ -56,8 +62,9 @@ function captureForCalibration() {
   return { imageData: pixels, originX: img.x, originY: img.y };
 }
 
-// Watches a calibrated screen region for the sudden pixel change that
-// marks a GCD starting, and calls onTrigger() at that instant.
+// Watches a calibrated screen region for a sudden pixel change and calls
+// onTrigger() at that instant. `label` is just for status text (e.g. "XP
+// drop", "GCD") so the same class serves either source.
 //
 // State machine per poll:
 //   armed=true, waiting for a big frame-to-frame change ("baseline").
@@ -65,13 +72,15 @@ function captureForCalibration() {
 //   While disarmed: once the region has looked quiet (small
 //   frame-to-frame change) for a couple of consecutive polls AND at least
 //   one tick's worth of time has passed since the trigger, re-arm.
-// This stops the cooldown-sweep animation's own ongoing pixel churn from
-// re-triggering a dozen times per activation.
+// This stops a change that keeps animating for a bit (a cooldown sweep
+// filling in, drop text fading/scrolling out) from re-triggering many
+// times over for what's really one event.
 class AutoSyncWatcher {
-  constructor(region, onTrigger, onStatus) {
+  constructor(region, onTrigger, onStatus, label) {
     this.region = region;
     this.onTrigger = onTrigger;
     this.onStatus = onStatus || (() => {});
+    this.label = label || "change";
     this.pollMs = 45;
     this.changeThreshold = 18; // avg per-channel brightness delta to count as "big"
     this.quietThreshold = 6;
@@ -93,7 +102,7 @@ class AutoSyncWatcher {
     this._armed = true;
     this._quietStreak = 0;
     this._timer = setInterval(() => this._poll(), this.pollMs);
-    this.onStatus("Watching calibrated slot for GCD activations...");
+    this.onStatus(`Watching calibrated spot for ${this.label}...`);
   }
 
   stop() {
@@ -116,7 +125,7 @@ class AutoSyncWatcher {
     const rx = this.region.x - img.x;
     const ry = this.region.y - img.y;
     if (rx < 0 || ry < 0 || rx + this.region.w > img.width || ry + this.region.h > img.height) {
-      this.onStatus("Calibrated slot is off-screen -- move the game window back or recalibrate.");
+      this.onStatus("Calibrated spot is off-screen -- move the game window back or recalibrate.");
       return;
     }
     let data;
@@ -136,7 +145,7 @@ class AutoSyncWatcher {
           this._armed = false;
           this._quietStreak = 0;
           this._lastTriggerAt = now;
-          this.onStatus(`GCD detected -- synced (change ${delta.toFixed(1)}).`);
+          this.onStatus(`${this.label} detected -- synced (change ${delta.toFixed(1)}).`);
           this.onTrigger();
         }
       } else {
@@ -148,7 +157,7 @@ class AutoSyncWatcher {
         }
         if (sinceTrigger > TICK_MS && this._quietStreak >= this.quietStreakNeeded) {
           this._armed = true;
-          this.onStatus("Watching calibrated slot for GCD activations...");
+          this.onStatus(`Watching calibrated spot for ${this.label}...`);
         }
       }
     }
@@ -159,8 +168,8 @@ class AutoSyncWatcher {
 function averageAbsDelta(a, b) {
   // RGBA byte arrays of equal length. Sampling every 4th pixel (skip 3
   // pixels between samples) keeps this cheap at 45ms polling without
-  // losing sensitivity -- a real GCD sweep changes a large fraction of
-  // the region, not a couple of stray pixels.
+  // losing sensitivity -- a real trigger event changes a large fraction
+  // of the region, not a couple of stray pixels.
   let sum = 0;
   let count = 0;
   const step = 16; // 4 pixels * 4 bytes
