@@ -2,6 +2,21 @@
 
 An [Alt1 Toolkit](https://runeapps.org/alt1) app that keeps a steady beat on RuneScape 3's 600ms game tick, with a visual flash, an audio click, and an optional transparent overlay counter drawn right on top of the game -- similar to the tick-timer metronome tools OSRS players use, adapted for RS3's tick length and its ability GCD.
 
+![The app's main screen](media/app-main-screen.png)
+
+## What would I use this for?
+
+Anything where "exactly how many ticks until I can act again" matters more than a rough feel for it:
+
+- **Ability queuing in bossing.** Set "Count to" to 3 (the GCD) and glance at the overlay instead of the ability bar's own cooldown swipe -- especially handy when your ability bar isn't in your direct line of sight, or you'd rather keep your eyes on the boss.
+- **Learning or drilling a rotation.** Set "Count to" to your rotation's full length and use the accented arrival tick as a metronome click to land each ability on the right beat while you're still building the muscle memory.
+- **Tick-eating and tick-perfect prayer switches.** Both depend on knowing precisely where you are in the 600ms cycle, not just "about now" -- the flash and click give you that reference point without doing mental math off a cooldown sweep.
+- **Any fixed-tick timing you're tracking manually today** -- weapon switches, buff reapplication, anything you currently count out in your head.
+
+The overlay is the main payoff for combat use -- it sits wherever you place it (here, just off to the side of the action bar) and counts up in real time over live gameplay, no alt-tabbing to a separate window:
+
+![Transparent overlay counting 1 to 4 over live combat](media/overlay-showcase.gif)
+
 ## Install
 
 Requires the [Alt1 Toolkit app](https://runeapps.org/alt1) (free, official RuneScape add-on). With Alt1 running:
