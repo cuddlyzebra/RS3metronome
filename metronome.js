@@ -42,20 +42,27 @@ class TickEngine {
     }
   }
 
-  // Re-anchors tick 0 to right now, without losing the running state.
-  // Used by both manual "tap to sync" and pixel-based auto-sync: the
-  // instant this is called becomes tick 0 and fires immediately (the sync
-  // moment IS a tick), and every future tick is scheduled relative to it.
-  syncNow() {
+  // Re-anchors tick 0 to a given instant (performance.now()-style
+  // timestamp), without losing the running state. Used by both manual
+  // "tap to sync" and pixel-based auto-sync.
+  //
+  // anchorTime defaults to right now. It can also be nudged forward or
+  // back (app.js's "sync offset" setting does this) to correct for a
+  // detector that consistently fires a bit early or late relative to the
+  // real event -- e.g. a GCD auto-sync trigger that's actually catching
+  // an ability's click-feedback animation rather than the cooldown sweep
+  // itself starting a little later. Scheduling through the normal
+  // _scheduleNext(0) path (rather than always firing immediately) handles
+  // both directions correctly: a future anchor fires tick 0 when it's
+  // actually reached, a past-or-present anchor fires it right away.
+  syncNow(anchorTime) {
     if (this.timerId !== null) {
       clearTimeout(this.timerId);
       this.timerId = null;
     }
     this.running = true;
-    this.startTime = performance.now();
-    this.tickIndex = 0;
-    this._fireTick();
-    this._scheduleNext(1);
+    this.startTime = typeof anchorTime === "number" ? anchorTime : performance.now();
+    this._scheduleNext(0);
   }
 
   _scheduleNext(nextIndex) {

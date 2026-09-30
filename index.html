@@ -52,6 +52,12 @@
       <input type="checkbox" id="accent-checkbox" checked />
       Accent the tick it arrives on (tick / tock)
     </label>
+
+    <div class="setting-row">
+      <label for="sync-offset-input">Sync offset (ms)</label>
+      <input type="number" id="sync-offset-input" min="-600" max="600" step="10" value="0" />
+    </div>
+    <div class="hint-text offset-hint">Shifts exactly when a sync (tap or auto) lands. If a sync consistently fires too early -- e.g. auto-sync catching an ability's click animation rather than the cooldown actually starting -- raise this. If tap-to-sync consistently lands late because of your own reaction time, lower it (negative is earlier).</div>
   </fieldset>
 
   <fieldset>

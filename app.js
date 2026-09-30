@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   volume: 70,
   accent: true,
   autosyncEnabled: false,
+  syncOffsetMs: 0, // shifts when a detected sync point actually lands, +later / -earlier
   overlayEnabled: false,
   overlaySize: 28,
   overlayColor: "gold",
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tickTargetInput = document.getElementById("tick-target-input");
   const volumeInput = document.getElementById("volume-input");
   const accentCheckbox = document.getElementById("accent-checkbox");
+  const syncOffsetInput = document.getElementById("sync-offset-input");
   const calibrateBtn = document.getElementById("calibrate-btn");
   const autosyncCheckbox = document.getElementById("autosync-checkbox");
   const autosyncStatus = document.getElementById("autosync-status");
@@ -90,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tickTargetInput.value = settings.tickTarget;
   volumeInput.value = settings.volume;
   accentCheckbox.checked = settings.accent;
+  syncOffsetInput.value = settings.syncOffsetMs;
   autosyncCheckbox.checked = settings.autosyncEnabled;
   overlayEnabledCheckbox.checked = settings.overlayEnabled;
   overlaySizeInput.value = settings.overlaySize;
@@ -154,13 +157,18 @@ document.addEventListener("DOMContentLoaded", () => {
     setRunning(!engine.running);
   });
 
-  syncBtn.addEventListener("click", () => {
-    engine.syncNow();
+  // Shared by manual tap-to-sync and auto-sync: re-anchors tick 0 to
+  // "now" (or a moment shifted by the sync-offset setting) and makes
+  // sure the transport shows as running.
+  function triggerSync() {
+    engine.syncNow(performance.now() + (settings.syncOffsetMs || 0));
     if (!startStopBtn.classList.contains("running")) {
       startStopBtn.textContent = "Stop";
       startStopBtn.classList.add("running");
     }
-  });
+  }
+
+  syncBtn.addEventListener("click", triggerSync);
 
   // --- settings wiring ---
   modeSelect.addEventListener("change", () => {
@@ -184,6 +192,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   accentCheckbox.addEventListener("change", () => {
     settings.accent = accentCheckbox.checked;
+    saveSettings(settings);
+  });
+
+  syncOffsetInput.addEventListener("change", () => {
+    const v = Math.max(-600, Math.min(600, parseInt(syncOffsetInput.value, 10) || 0));
+    syncOffsetInput.value = v;
+    settings.syncOffsetMs = v;
     saveSettings(settings);
   });
 
@@ -250,13 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (autoWatcher) autoWatcher.stop();
     autoWatcher = new AutoSyncWatcher(
       region,
-      () => {
-        engine.syncNow();
-        if (!startStopBtn.classList.contains("running")) {
-          startStopBtn.textContent = "Stop";
-          startStopBtn.classList.add("running");
-        }
-      },
+      triggerSync,
       autoSyncStatusText
     );
     autoWatcher.start();

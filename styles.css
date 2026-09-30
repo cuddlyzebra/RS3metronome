@@ -139,6 +139,9 @@ button.primary.running:hover { background: #5c2626; }
   font-size: 10px;
   color: #7a7061;
 }
+.offset-hint {
+  margin: -4px 0 8px 0;
+}
 
 .checkbox-row {
   display: flex;
