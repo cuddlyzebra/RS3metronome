@@ -64,6 +64,18 @@ button.primary.running {
 }
 button.primary.running:hover { background: #5c2626; }
 
+button.primary.waiting {
+  background: #4a3a1e;
+  border-color: #ffcc33;
+  animation: waiting-pulse 1.2s ease-in-out infinite;
+}
+button.primary.waiting:hover { background: #5c4826; }
+
+@keyframes waiting-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
 .main-display {
   text-align: center;
 }

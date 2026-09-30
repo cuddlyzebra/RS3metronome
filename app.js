@@ -120,42 +120,57 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // --- transport ---
-  // Starting also arms a one-shot RuneMetrics sync automatically -- the
-  // metronome runs freely the instant you hit Start, and locks onto the
-  // real tick boundary as soon as it catches the next change at the
-  // calibrated spot. There's no separate sync button: to re-align a
-  // drifted count later, Stop then Start again.
+  // Start doesn't actually begin counting right away if a RuneMetrics
+  // spot is calibrated -- it arms the sync watch and waits, so tick 0
+  // always lands on a real tick boundary rather than whenever Start
+  // happened to be clicked. The tick face and overlay stay blank/at 0
+  // during that wait; the engine only actually starts once the watcher
+  // catches a change (see triggerSync()). With nothing calibrated yet
+  // there's no sync target, so it just runs freely instead.
   function setRunning(running) {
     if (running) {
-      engine.start();
-      startStopBtn.textContent = "Stop";
-      startStopBtn.classList.add("running");
+      const region = loadCalibration(XP_CALIBRATION_KEY);
+      if (!region) {
+        engine.start();
+        startStopBtn.textContent = "Stop";
+        startStopBtn.classList.add("running");
+        xpAutoSyncStatusText("Not calibrated -- running freely. Do Step 1 to sync automatically next time.");
+        return;
+      }
+      startStopBtn.textContent = "Cancel (waiting to sync...)";
+      startStopBtn.classList.add("waiting");
       startXpSyncOnce();
     } else {
+      const wasWaiting = xpSyncWaiting && !engine.running;
       engine.stop();
       startStopBtn.textContent = "Start";
-      startStopBtn.classList.remove("running");
+      startStopBtn.classList.remove("running", "waiting");
       tickCountEl.textContent = "0";
       tickFace.classList.remove("pulse", "pulse-accent");
       flashOverlay.classList.remove("flash", "flash-accent");
       overlay.clear();
-      if (xpSyncWaiting) stopXpSyncOnce("Stopped.");
+      if (xpSyncWaiting) stopXpSyncOnce(wasWaiting ? "Cancelled." : "Stopped.");
     }
   }
 
+  // A click means "stop/cancel" whenever anything is currently running
+  // OR waiting to sync, and "start" otherwise -- engine.running alone
+  // isn't enough since the wait-for-sync phase hasn't started the
+  // engine yet but still needs the click to cancel rather than re-arm.
   startStopBtn.addEventListener("click", () => {
-    setRunning(!engine.running);
+    setRunning(!(engine.running || xpSyncWaiting));
   });
 
-  // Called by RuneMetrics auto-sync: re-anchors tick 0 to "now" (or a
-  // moment shifted by the sync-offset setting) and makes sure the
-  // transport shows as running.
+  // Called when the RuneMetrics watcher actually catches a change:
+  // this is the moment the engine actually starts (or re-anchors, if
+  // already running) -- re-anchors tick 0 to "now" (or a moment shifted
+  // by the sync-offset setting) and makes sure the transport shows as
+  // running rather than waiting.
   function triggerSync() {
     engine.syncNow(performance.now() + (settings.syncOffsetMs || 0));
-    if (!startStopBtn.classList.contains("running")) {
-      startStopBtn.textContent = "Stop";
-      startStopBtn.classList.add("running");
-    }
+    startStopBtn.textContent = "Stop";
+    startStopBtn.classList.remove("waiting");
+    startStopBtn.classList.add("running");
   }
 
   // --- settings wiring ---
@@ -436,7 +451,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // There's no separate "sync" button: setRunning() calls this
   // automatically the moment Start is clicked (and stopping cancels it
   // again), so the only two steps a player does are calibrate once, then
-  // hit Start each time they want to (re-)sync and begin counting.
+  // hit Start each time they want to (re-)sync and begin counting. The
+  // engine itself doesn't start until this actually fires (see
+  // setRunning/triggerSync above) -- Start arms the watch and waits.
   //
   // The trigger threshold is set to fire on *any* detected change in the
   // watched box, however small, rather than requiring a big, obvious
@@ -459,6 +476,13 @@ document.addEventListener("DOMContentLoaded", () => {
       clearTimeout(xpSyncTimeoutId);
       xpSyncTimeoutId = null;
     }
+    if (!engine.running) {
+      // Never actually started (cancelled, or timed out mid-wait) --
+      // make sure the button reflects that rather than being stuck on
+      // "waiting".
+      startStopBtn.textContent = "Start";
+      startStopBtn.classList.remove("running", "waiting");
+    }
     if (status !== undefined) xpAutoSyncStatusText(status);
   }
 
@@ -476,7 +500,13 @@ document.addEventListener("DOMContentLoaded", () => {
         triggerSync();
         stopXpSyncOnce("Synced.");
       },
-      () => {},
+      // Surface the watcher's own status (e.g. "spot is off-screen") --
+      // this used to be silently dropped, which hid the real reason a
+      // wait timed out (a moved/resized game window, most commonly)
+      // behind a generic "didn't catch anything" message.
+      (status) => {
+        if (xpSyncWaiting) xpAutoSyncStatusText(status);
+      },
       "RuneMetrics update"
     );
     xpWatcher.triggerCount = 0; // fire on any detected change at all, not just a big one
