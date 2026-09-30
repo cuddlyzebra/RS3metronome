@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RS3 Tick Metronome</title>
+  <link rel="icon" href="icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@alt1/base@1.0.0-alpha.7/dist/index.bundle.min.js"></script>
+</head>
+<body>
+  <h1>RS3 TICK METRONOME</h1>
+  <div class="subtitle">600ms-accurate tick timer with sync</div>
+
+  <div id="flash-overlay"></div>
+
+  <fieldset class="main-display">
+    <div id="tick-face" class="tick-face">
+      <div id="tick-count" class="tick-count">0</div>
+      <div id="tick-target-label" class="tick-target-label"></div>
+    </div>
+    <div class="transport">
+      <button class="primary" id="start-stop-btn">Start</button>
+      <button id="sync-btn" title="Tap the instant you see an XP drop or GCD start">Tap to sync</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Settings</legend>
+
+    <div class="setting-row">
+      <label for="mode-select">Output</label>
+      <select id="mode-select">
+        <option value="both">Visual + audio</option>
+        <option value="visual">Visual only</option>
+        <option value="audio">Audio only</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="tick-target-input">Count to (ticks)</label>
+      <input type="number" id="tick-target-input" min="1" max="999" value="3" />
+      <span class="hint-text">e.g. 3 for a 1.8s GCD</span>
+    </div>
+
+    <div class="setting-row">
+      <label for="volume-input">Volume</label>
+      <input type="range" id="volume-input" min="0" max="100" value="70" />
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="accent-checkbox" checked />
+      Accent the first tick of each count (tick / tock)
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Auto-sync (experimental)</legend>
+    <div class="footer-note">
+      Watches a small region of your screen for the sudden pixel change that happens the instant an ability's GCD cooldown starts sweeping across its icon, and re-syncs the metronome phase to that moment automatically. Needs a one-time calibration since everyone's ability bar sits somewhere different.
+    </div>
+    <button id="calibrate-btn">Calibrate ability slot...</button>
+    <label class="checkbox-row">
+      <input type="checkbox" id="autosync-checkbox" />
+      Enable auto-sync from calibrated slot
+    </label>
+    <div id="autosync-status" class="footer-note"></div>
+  </fieldset>
+
+  <div class="footer-note" id="general-status"></div>
+
+  <div id="calibration-modal" class="modal hidden">
+    <div class="modal-inner">
+      <div class="modal-title">Click the center of your ability slot</div>
+      <div class="modal-hint">This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). You can re-run this any time your UI moves or rescales.</div>
+      <canvas id="calibration-canvas"></canvas>
+      <div class="setting-row">
+        <label for="calibration-size">Slot size (px)</label>
+        <input type="number" id="calibration-size" min="12" max="120" value="34" />
+      </div>
+      <div class="modal-buttons">
+        <button id="calibration-cancel-btn">Cancel</button>
+        <button id="calibration-recapture-btn">Recapture</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="metronome.js"></script>
+  <script src="sync.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

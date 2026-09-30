@@ -1,0 +1,16 @@
+{
+  "appName": "RS3 Tick Metronome",
+  "description": "A visual + audio tick metronome for RuneScape 3's 600ms game tick, with tap-to-sync and calibratable auto-sync off your ability bar's GCD.",
+  "appUrl": "./index.html",
+  "configUrl": "./appconfig.json",
+  "iconUrl": "./icon.png",
+  "defaultWidth": 340,
+  "defaultHeight": 480,
+  "minWidth": 260,
+  "minHeight": 380,
+  "maxWidth": 600,
+  "maxHeight": 800,
+  "requestHandlers": [],
+  "activators": [],
+  "permissions": "pixel"
+}
