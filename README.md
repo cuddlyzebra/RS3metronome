@@ -12,9 +12,9 @@ Almost everything in RS3 that's timed happens in whole multiples of the game's 6
 
 A drift-corrected 600ms scheduler (anchored to a single start time via `performance.now()`, recomputing the delay to the next absolute tick instant every time, rather than a naive `setInterval` that slowly drifts) fires a callback every tick. Each tick:
 
-- Flashes the on-screen dial and, optionally, the whole app window briefly.
-- Plays a short synthesized click (no external sound files) -- a higher-pitched "tick" on the first beat of your count, a lower "tock" on the rest, so you can tell the count boundary by ear.
-- Advances a counter from 1 up to whatever you've set "Count to" as (3 by default, for the 1.8s GCD), then wraps back to 1.
+- Advances a counter from 1 up to whatever you've set "Count to" as (3 by default, for the 1.8s GCD), then wraps back to 1. The number changes instantly -- no fade or slide -- both in the app window and on the overlay.
+- Plays a short synthesized click (no external sound files) -- a lower "tock" on ordinary ticks, and (if "accent" is on) a higher-pitched "tick" the instant it *arrives* on the tick you're counting to, so you can hear that boundary without looking.
+- Flashes the on-screen dial and the whole app window, but only on that same arrival tick -- not on every tick. If you're counting to 3, you'll see 1, 2, 3(flash), 1, 2, 3(flash)... rather than a flash every beat.
 
 ### Staying in sync
 
@@ -27,17 +27,24 @@ The metronome runs freely from whenever you hit Start, which won't line up with 
 
   XP-drop-based auto-sync (the other trigger you mentioned) isn't implemented yet -- it needs reading the XP counter's digits via OCR to know a drop happened, which is a fair bit more involved than a simple pixel-change watch and doesn't fire on ticks where you don't gain XP anyway. GCD-based sync covers the common case (you're actively using abilities) more simply. Worth revisiting if the GCD approach doesn't feel reliable enough in practice.
 
+### Transparent overlay counter
+
+The count can also be drawn directly on top of the game itself, using Alt1's overlay drawing API -- just the number, no background or window around it, positioned wherever you like. Click "Place overlay position...", click the spot in the captured screenshot, then tick "Show overlay counter in-game". Alt1 overlay draws are inherently transparent (they're strokes drawn straight onto the game, not a filled box) and change instantly on each tick, same as the number in the app window. Size and color (gold/white/red/green/cyan) are both adjustable. Since Alt1 only keeps an overlay draw on screen for a fraction of a second before it needs to be refreshed, this redraws it every tick -- which lines up naturally, since that's exactly when the number changes anyway.
+
+### Calibrating (ability slot or overlay position)
+
+Both the auto-sync ability slot and the overlay position use the same click-to-place screenshot picker. The captured screenshot is your whole game window shrunk to fit the preview, which can make it hard to click exactly the right pixel -- **scroll the mouse wheel over the preview to zoom in around wherever your cursor is**, right down to individual pixels, then click. "Reset zoom" goes back to the full view.
+
 ### Settings
 
 - **Output**: visual + audio, visual only, or audio only.
 - **Count to (ticks)**: defaults to 3 (the GCD), but set it to whatever run length you're tracking.
-- **Volume** and whether the first tick of each count is accented.
+- **Volume** and whether the arrival tick is accented (a distinct tone, and the flash).
 
 All settings and your calibration persist across reloads (stored locally in the app, not synced anywhere).
 
 ## What's next
 
-- **Transparent overlay counter**, so the count is visible directly over the game window rather than only inside the app's own frame. Alt1 supports drawing overlay text/shapes on top of the game via its `overlay` permission -- deliberately left out of this first version to keep the permission ask minimal until it's actually built. Flagged as the next thing to add once the core metronome is confirmed working well for you.
 - Possibly: XP-drop-based auto-sync as a second trigger source, if GCD-based sync doesn't prove reliable enough alone.
 - Possibly: a keybind for "tap to sync" that works even when the app isn't focused, if Alt1's binding API supports it cleanly.
 

@@ -1,4 +1,4 @@
-// Wires the tick engine, audio, visuals and settings together.
+// Wires the tick engine, audio, visuals, overlay and settings together.
 
 const SETTINGS_KEY = "rs3metronome.settings";
 const DEFAULT_SETTINGS = {
@@ -7,6 +7,9 @@ const DEFAULT_SETTINGS = {
   volume: 70,
   accent: true,
   autosyncEnabled: false,
+  overlayEnabled: false,
+  overlaySize: 28,
+  overlayColor: "gold",
 };
 
 function loadSettings() {
@@ -27,6 +30,12 @@ function saveSettings(settings) {
   }
 }
 
+// Fixed size of the calibration viewport canvas -- zooming/panning changes
+// what part of the captured screenshot is drawn into it, never its own
+// element size, which keeps the click math in one place.
+const CAL_VIEWPORT_W = 560;
+const CAL_VIEWPORT_H = 420;
+
 document.addEventListener("DOMContentLoaded", () => {
   if (window.alt1) {
     window.alt1.identifyAppUrl("./appconfig.json");
@@ -37,6 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const engine = new TickEngine();
   const player = new ClickPlayer();
   player.setVolume(settings.volume / 100);
+  const overlay = new OverlayCounter();
+  overlay.setSize(settings.overlaySize);
+  overlay.setColorName(settings.overlayColor);
 
   let autoWatcher = null;
 
@@ -56,11 +68,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const autosyncStatus = document.getElementById("autosync-status");
   const generalStatus = document.getElementById("general-status");
 
+  const placeOverlayBtn = document.getElementById("place-overlay-btn");
+  const overlayEnabledCheckbox = document.getElementById("overlay-enabled-checkbox");
+  const overlaySizeInput = document.getElementById("overlay-size-input");
+  const overlayColorSelect = document.getElementById("overlay-color-select");
+  const overlayStatus = document.getElementById("overlay-status");
+
   const calibrationModal = document.getElementById("calibration-modal");
   const calibrationCanvas = document.getElementById("calibration-canvas");
+  const calibrationTitle = document.getElementById("calibration-title");
+  const calibrationHint = document.getElementById("calibration-hint");
+  const calibrationSizeRow = document.getElementById("calibration-size-row");
   const calibrationSize = document.getElementById("calibration-size");
   const calibrationCancelBtn = document.getElementById("calibration-cancel-btn");
   const calibrationRecaptureBtn = document.getElementById("calibration-recapture-btn");
+  const calibrationZoomLabel = document.getElementById("calibration-zoom-label");
+  const calibrationZoomResetBtn = document.getElementById("calibration-zoom-reset-btn");
 
   // --- apply saved settings to controls ---
   modeSelect.value = settings.mode;
@@ -68,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
   volumeInput.value = settings.volume;
   accentCheckbox.checked = settings.accent;
   autosyncCheckbox.checked = settings.autosyncEnabled;
+  overlayEnabledCheckbox.checked = settings.overlayEnabled;
+  overlaySizeInput.value = settings.overlaySize;
+  overlayColorSelect.value = settings.overlayColor;
   tickTargetLabel.textContent = `counting to ${settings.tickTarget}`;
 
   if (!window.alt1 || !window.alt1.permissionPixel) {
@@ -78,18 +104,18 @@ document.addEventListener("DOMContentLoaded", () => {
   engine.onTick = (tickIndex) => {
     const target = Math.max(1, settings.tickTarget | 0);
     const position = ((tickIndex % target) + target) % target; // 0-indexed within the count
-    const isAccent = settings.accent && position === 0;
+    const isArrival = position === target - 1; // the tick it "arrives" on
+    const isAccentSound = settings.accent && isArrival;
     const displayCount = position + 1;
 
     tickCountEl.textContent = String(displayCount);
 
-    if (settings.mode === "visual" || settings.mode === "both") {
+    if (isArrival && (settings.mode === "visual" || settings.mode === "both")) {
       tickFace.classList.remove("pulse", "pulse-accent");
       flashOverlay.classList.remove("flash", "flash-accent");
-      // force reflow so the animation restarts even on consecutive ticks
-      void tickFace.offsetWidth;
-      const cls = isAccent ? "pulse-accent" : "pulse";
-      const flashCls = isAccent ? "flash-accent" : "flash";
+      void tickFace.offsetWidth; // force reflow so the animation restarts
+      const cls = settings.accent ? "pulse-accent" : "pulse";
+      const flashCls = settings.accent ? "flash-accent" : "flash";
       tickFace.classList.add(cls);
       flashOverlay.classList.add(flashCls);
       setTimeout(() => {
@@ -99,7 +125,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (settings.mode === "audio" || settings.mode === "both") {
-      player.play(isAccent);
+      player.play(isAccentSound);
+    }
+
+    if (settings.overlayEnabled) {
+      overlay.show(String(displayCount));
     }
   };
 
@@ -116,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tickCountEl.textContent = "0";
       tickFace.classList.remove("pulse", "pulse-accent");
       flashOverlay.classList.remove("flash", "flash-accent");
+      overlay.clear();
     }
   }
 
@@ -155,6 +186,52 @@ document.addEventListener("DOMContentLoaded", () => {
     settings.accent = accentCheckbox.checked;
     saveSettings(settings);
   });
+
+  // --- overlay counter ---
+  overlaySizeInput.addEventListener("change", () => {
+    const v = Math.max(10, Math.min(80, parseInt(overlaySizeInput.value, 10) || 28));
+    overlaySizeInput.value = v;
+    settings.overlaySize = v;
+    overlay.setSize(v);
+    saveSettings(settings);
+  });
+
+  overlayColorSelect.addEventListener("change", () => {
+    settings.overlayColor = overlayColorSelect.value;
+    overlay.setColorName(settings.overlayColor);
+    saveSettings(settings);
+  });
+
+  overlayEnabledCheckbox.addEventListener("change", () => {
+    settings.overlayEnabled = overlayEnabledCheckbox.checked;
+    saveSettings(settings);
+    if (settings.overlayEnabled) {
+      if (!overlay.position) {
+        overlayStatus.textContent = "Place the overlay position first.";
+        overlayEnabledCheckbox.checked = false;
+        settings.overlayEnabled = false;
+        saveSettings(settings);
+        return;
+      }
+      if (!overlay.isAvailable()) {
+        overlayStatus.textContent = "Alt1 overlay permission isn't granted for this app.";
+        overlayEnabledCheckbox.checked = false;
+        settings.overlayEnabled = false;
+        saveSettings(settings);
+        return;
+      }
+      overlayStatus.textContent = engine.running ? "Overlay is on." : "Overlay is on -- start the metronome to see it.";
+    } else {
+      overlay.clear();
+      overlayStatus.textContent = "";
+    }
+  });
+
+  if (overlay.position) {
+    overlayStatus.textContent = settings.overlayEnabled ? "Overlay is on." : "Positioned. Enable the checkbox to show it.";
+  } else {
+    overlayStatus.textContent = "Not positioned yet.";
+  }
 
   // --- auto-sync ---
   function autoSyncStatusText(text) {
@@ -210,65 +287,174 @@ document.addEventListener("DOMContentLoaded", () => {
     autoSyncStatusText(existing ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
   }
 
-  // --- calibration modal ---
-  let calibrationCapture = null; // { imageData, originX, originY, scale }
+  // ==========================================================================
+  // Calibration modal -- shared by both the ability-slot region picker
+  // (auto-sync) and the overlay position picker, distinguished by `mode`.
+  // ==========================================================================
 
-  function openCalibration() {
+  let calCapture = null; // { offCanvas, imgW, imgH, originX, originY }
+  let calView = null; // { zoom, srcCenterX, srcCenterY, _last }
+  let calMode = "ability"; // "ability" | "overlay"
+
+  function calBaseScale() {
+    return Math.min(CAL_VIEWPORT_W / calCapture.imgW, CAL_VIEWPORT_H / calCapture.imgH);
+  }
+
+  function renderCalibrationViewport() {
+    const ctx = calibrationCanvas.getContext("2d");
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, CAL_VIEWPORT_W, CAL_VIEWPORT_H);
+
+    const scale = calBaseScale() * calView.zoom;
+    let srcW = CAL_VIEWPORT_W / scale;
+    let srcH = CAL_VIEWPORT_H / scale;
+    let srcX = calView.srcCenterX - srcW / 2;
+    let srcY = calView.srcCenterY - srcH / 2;
+
+    let destX = 0, destY = 0, destW = CAL_VIEWPORT_W, destH = CAL_VIEWPORT_H;
+
+    if (srcW <= calCapture.imgW) {
+      srcX = Math.max(0, Math.min(calCapture.imgW - srcW, srcX));
+    } else {
+      destW = calCapture.imgW * scale;
+      destX = (CAL_VIEWPORT_W - destW) / 2;
+      srcX = 0;
+      srcW = calCapture.imgW;
+    }
+    if (srcH <= calCapture.imgH) {
+      srcY = Math.max(0, Math.min(calCapture.imgH - srcH, srcY));
+    } else {
+      destH = calCapture.imgH * scale;
+      destY = (CAL_VIEWPORT_H - destH) / 2;
+      srcY = 0;
+      srcH = calCapture.imgH;
+    }
+
+    calView.srcCenterX = srcX + srcW / 2;
+    calView.srcCenterY = srcY + srcH / 2;
+
+    ctx.imageSmoothingEnabled = calView.zoom <= 2;
+    ctx.drawImage(calCapture.offCanvas, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+
+    calView._last = { srcX, srcY, srcW, srcH, destX, destY, destW, destH };
+    calibrationZoomLabel.textContent = `Zoom: ${calView.zoom.toFixed(1)}x`;
+  }
+
+  function openCalibration(mode) {
+    calMode = mode;
     const capture = captureForCalibration();
     if (!capture) {
       generalStatus.textContent = "Alt1 pixel permission isn't granted -- can't capture the screen to calibrate.";
       return;
     }
-    const maxDim = 520;
-    const scale = Math.min(1, maxDim / Math.max(capture.imageData.width, capture.imageData.height));
-    calibrationCapture = { ...capture, scale };
-
     const off = document.createElement("canvas");
     off.width = capture.imageData.width;
     off.height = capture.imageData.height;
     off.getContext("2d").putImageData(capture.imageData, 0, 0);
 
-    calibrationCanvas.width = Math.round(capture.imageData.width * scale);
-    calibrationCanvas.height = Math.round(capture.imageData.height * scale);
-    const ctx = calibrationCanvas.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(off, 0, 0, calibrationCanvas.width, calibrationCanvas.height);
+    calCapture = {
+      offCanvas: off,
+      imgW: capture.imageData.width,
+      imgH: capture.imageData.height,
+      originX: capture.originX,
+      originY: capture.originY,
+    };
+    calView = {
+      zoom: 1,
+      srcCenterX: calCapture.imgW / 2,
+      srcCenterY: calCapture.imgH / 2,
+    };
 
+    if (mode === "ability") {
+      calibrationTitle.textContent = "Click the center of your ability slot";
+      calibrationHint.textContent = "This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). Scroll to zoom in on the cursor for a more precise click. You can re-run this any time your UI moves or rescales.";
+      calibrationSizeRow.style.display = "";
+    } else {
+      calibrationTitle.textContent = "Click where you want the counter";
+      calibrationHint.textContent = "Click the spot on screen where the transparent number should appear. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
+      calibrationSizeRow.style.display = "none";
+    }
+
+    renderCalibrationViewport();
     calibrationModal.classList.remove("hidden");
   }
 
   function closeCalibration() {
     calibrationModal.classList.add("hidden");
-    calibrationCapture = null;
+    calCapture = null;
+    calView = null;
   }
 
-  calibrateBtn.addEventListener("click", openCalibration);
+  calibrateBtn.addEventListener("click", () => openCalibration("ability"));
+  placeOverlayBtn.addEventListener("click", () => openCalibration("overlay"));
   calibrationCancelBtn.addEventListener("click", closeCalibration);
-  calibrationRecaptureBtn.addEventListener("click", openCalibration);
+  calibrationRecaptureBtn.addEventListener("click", () => openCalibration(calMode));
+  calibrationZoomResetBtn.addEventListener("click", () => {
+    if (!calView || !calCapture) return;
+    calView.zoom = 1;
+    calView.srcCenterX = calCapture.imgW / 2;
+    calView.srcCenterY = calCapture.imgH / 2;
+    renderCalibrationViewport();
+  });
+
+  function viewportPointFromEvent(ev) {
+    const rect = calibrationCanvas.getBoundingClientRect();
+    const scaleX = CAL_VIEWPORT_W / rect.width;
+    const scaleY = CAL_VIEWPORT_H / rect.height;
+    return {
+      vx: (ev.clientX - rect.left) * scaleX,
+      vy: (ev.clientY - rect.top) * scaleY,
+    };
+  }
+
+  calibrationCanvas.addEventListener("wheel", (ev) => {
+    if (!calView || !calCapture) return;
+    ev.preventDefault();
+    const { vx, vy } = viewportPointFromEvent(ev);
+    const m = calView._last;
+    const clampedVx = Math.max(m.destX, Math.min(m.destX + m.destW, vx));
+    const clampedVy = Math.max(m.destY, Math.min(m.destY + m.destH, vy));
+    const srcUnderX = m.srcX + (clampedVx - m.destX) * (m.srcW / m.destW);
+    const srcUnderY = m.srcY + (clampedVy - m.destY) * (m.srcH / m.destH);
+
+    const factor = ev.deltaY < 0 ? 1.25 : 1 / 1.25;
+    calView.zoom = Math.max(1, Math.min(15, calView.zoom * factor));
+    calView.srcCenterX = srcUnderX;
+    calView.srcCenterY = srcUnderY;
+    renderCalibrationViewport();
+  }, { passive: false });
 
   calibrationCanvas.addEventListener("click", (ev) => {
-    if (!calibrationCapture) return;
-    const rect = calibrationCanvas.getBoundingClientRect();
-    // canvas may itself be CSS-scaled to fit (max-width:100%) on top of
-    // our own scale factor -- account for both to get true source pixels.
-    const canvasScaleX = calibrationCanvas.width / rect.width;
-    const canvasScaleY = calibrationCanvas.height / rect.height;
-    const cssX = (ev.clientX - rect.left) * canvasScaleX;
-    const cssY = (ev.clientY - rect.top) * canvasScaleY;
+    if (!calCapture || !calView) return;
+    const { vx, vy } = viewportPointFromEvent(ev);
+    const m = calView._last;
+    if (vx < m.destX || vx > m.destX + m.destW || vy < m.destY || vy > m.destY + m.destH) {
+      return; // clicked in a letterboxed area -- not on the image
+    }
+    const sourceX = m.srcX + (vx - m.destX) * (m.srcW / m.destW);
+    const sourceY = m.srcY + (vy - m.destY) * (m.srcH / m.destH);
 
-    const sourceX = cssX / calibrationCapture.scale;
-    const sourceY = cssY / calibrationCapture.scale;
-
-    const size = Math.max(12, Math.min(120, parseInt(calibrationSize.value, 10) || 34));
-    const region = {
-      x: Math.round(calibrationCapture.originX + sourceX - size / 2),
-      y: Math.round(calibrationCapture.originY + sourceY - size / 2),
-      w: size,
-      h: size,
-    };
-    saveCalibration(region);
-    closeCalibration();
-    autoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
-    if (settings.autosyncEnabled) startAutoWatcher();
+    if (calMode === "ability") {
+      const size = Math.max(12, Math.min(120, parseInt(calibrationSize.value, 10) || 34));
+      const region = {
+        x: Math.round(calCapture.originX + sourceX - size / 2),
+        y: Math.round(calCapture.originY + sourceY - size / 2),
+        w: size,
+        h: size,
+      };
+      saveCalibration(region);
+      closeCalibration();
+      autoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
+      if (settings.autosyncEnabled) startAutoWatcher();
+    } else {
+      // Overlay coordinates are RS-window-relative, which is exactly what
+      // the captured screenshot's own pixel offsets already are -- no
+      // origin to add here (unlike the ability-slot region above, which
+      // needs absolute screen coordinates for toData()/findSubimage()).
+      const pos = { x: Math.round(sourceX), y: Math.round(sourceY) };
+      overlay.setPosition(pos);
+      closeCalibration();
+      overlayStatus.textContent = settings.overlayEnabled ? "Overlay is on." : "Positioned. Enable the checkbox to show it.";
+    }
   });
 });

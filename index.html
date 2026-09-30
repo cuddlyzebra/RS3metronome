@@ -50,7 +50,7 @@
 
     <label class="checkbox-row">
       <input type="checkbox" id="accent-checkbox" checked />
-      Accent the first tick of each count (tick / tock)
+      Accent the tick it arrives on (tick / tock)
     </label>
   </fieldset>
 
@@ -67,14 +67,45 @@
     <div id="autosync-status" class="footer-note"></div>
   </fieldset>
 
+  <fieldset>
+    <legend>Transparent overlay counter</legend>
+    <div class="footer-note">
+      Draws the current count directly over the game (no window border, no background) at a spot you choose, so you can keep it in view without alt-tabbing to this app. Updates instantly, no fade or slide between numbers.
+    </div>
+    <button id="place-overlay-btn">Place overlay position...</button>
+    <label class="checkbox-row">
+      <input type="checkbox" id="overlay-enabled-checkbox" />
+      Show overlay counter in-game
+    </label>
+    <div class="setting-row">
+      <label for="overlay-size-input">Size</label>
+      <input type="number" id="overlay-size-input" min="10" max="80" value="28" />
+    </div>
+    <div class="setting-row">
+      <label for="overlay-color-select">Color</label>
+      <select id="overlay-color-select">
+        <option value="gold">Gold</option>
+        <option value="white">White</option>
+        <option value="red">Red</option>
+        <option value="green">Green</option>
+        <option value="cyan">Cyan</option>
+      </select>
+    </div>
+    <div id="overlay-status" class="footer-note"></div>
+  </fieldset>
+
   <div class="footer-note" id="general-status"></div>
 
   <div id="calibration-modal" class="modal hidden">
     <div class="modal-inner">
-      <div class="modal-title">Click the center of your ability slot</div>
-      <div class="modal-hint">This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). You can re-run this any time your UI moves or rescales.</div>
-      <canvas id="calibration-canvas"></canvas>
-      <div class="setting-row">
+      <div class="modal-title" id="calibration-title">Click the center of your ability slot</div>
+      <div class="modal-hint" id="calibration-hint">This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). Scroll to zoom in on the cursor for a more precise click. You can re-run this any time your UI moves or rescales.</div>
+      <canvas id="calibration-canvas" width="560" height="420"></canvas>
+      <div class="modal-zoom-row">
+        <span id="calibration-zoom-label">Zoom: 1.0x</span>
+        <button id="calibration-zoom-reset-btn">Reset zoom</button>
+      </div>
+      <div class="setting-row" id="calibration-size-row">
         <label for="calibration-size">Slot size (px)</label>
         <input type="number" id="calibration-size" min="12" max="120" value="34" />
       </div>
@@ -87,6 +118,7 @@
 
   <script src="metronome.js"></script>
   <script src="sync.js"></script>
+  <script src="overlay.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
