@@ -71,13 +71,22 @@ class OverlayCounter {
   }
 
   // Draws (or redraws) the current text at the calibrated spot. Call this
-  // every tick while enabled -- each call both positions and refreshes
-  // the overlay's remaining on-screen time.
+  // every tick while enabled.
+  //
+  // A group isn't a single slot that a new draw overwrites -- every
+  // overLayTextEx call adds another draw to the group, which only goes
+  // away once its own `time` expires. Redrawing every tick without
+  // clearing first meant each tick's number stacked on top of the
+  // previous one still fading out, instead of replacing it -- hence the
+  // overlapping digits. Clearing the group immediately before drawing the
+  // new number fixes that: at any instant there's at most one draw in
+  // the group.
   show(text) {
     if (!this.position || !this.isAvailable()) return;
     const [r, g, b] = OVERLAY_COLORS[this.colorName] || OVERLAY_COLORS.gold;
     const color = A1lib.mixColor(r, g, b, 255);
     try {
+      window.alt1.overLayClearGroup(OVERLAY_GROUP);
       window.alt1.overLaySetGroup(OVERLAY_GROUP);
       window.alt1.overLayTextEx(text, color, this.size, this.position.x, this.position.y, TICK_MS + 300, "", true, true);
     } catch (e) {
