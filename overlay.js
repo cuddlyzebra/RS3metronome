@@ -5,11 +5,12 @@
 //
 // Alt1 overlay coordinates are relative to the RS client window itself
 // (0,0 = the game window's own top-left), NOT absolute desktop
-// coordinates -- unlike the pixel-region reading in sync.js, which uses
-// absolute screen coordinates for toData(). That's why this position is
-// stored exactly as read from alt1.mousePosition (already
-// RS-window-relative), whereas the RuneMetrics region calibration in
-// app.js adds alt1.rsX/rsY to get absolute screen coordinates.
+// coordinates -- and so is the pixel-region reading in sync.js, since
+// A1lib.captureHoldFullRs()/toData() are also window-relative (that
+// capture binds the RS client starting at its own (0,0)). So this
+// position is stored exactly as read from alt1.mousePosition, the same
+// way the RuneMetrics region calibration in app.js is -- neither needs
+// alt1.rsX/rsY at all.
 //
 // An overlay draw call only persists on screen for its own `time`
 // argument (ms) before Alt1 removes it -- there's no "leave this up

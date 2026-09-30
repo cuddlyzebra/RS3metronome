@@ -132,8 +132,11 @@ class AutoSyncWatcher {
     } catch (e) {
       return;
     }
-    // The region was calibrated in absolute screen coordinates; convert
-    // to this capture's own coordinate space in case the window moved.
+    // Both the calibrated region and img.x/img.y are RS-window-relative
+    // (captureHoldFullRs() always binds starting at the window's own
+    // (0,0), so img.x/img.y are 0 in practice) -- this subtraction is
+    // just a sanity check that the region still fits inside the current
+    // capture, in case the RS window was resized smaller since calibrating.
     const rx = this.region.x - img.x;
     const ry = this.region.y - img.y;
     if (rx < 0 || ry < 0 || rx + this.region.w > img.width || ry + this.region.h > img.height) {

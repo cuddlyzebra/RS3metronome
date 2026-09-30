@@ -257,8 +257,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // than clicking a shrunk, zoomed screenshot in a little in-app preview.
   // alt1.mousePosition (needs the "gamestate" permission) gives the live
   // cursor position, RS-window-relative -- the same coordinate space
-  // overlay drawing uses, and (via alt1.rsX/rsY) convertible to the
-  // absolute screen coordinates the pixel-region watcher needs.
+  // both overlay drawing AND A1lib.captureHoldFullRs()/toData() use (that
+  // capture binds the RS client starting at its own (0,0), not the
+  // desktop's), so it's used directly for both without any rsX/rsY
+  // offset. alt1.rsX/rsY are the window's desktop-absolute position and
+  // aren't needed here at all -- they'd only matter for a capture method
+  // that worked in desktop-absolute coordinates, which this doesn't.
   // ==========================================================================
 
   const HOVER_CAPTURE_SECONDS = 3;
@@ -421,9 +425,18 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const { w, h } = clampedXpRegionSize();
+      // Window-relative, same as lastPos itself -- NOT desktop-absolute.
+      // A1lib.captureHoldFullRs() binds the RS client starting at its own
+      // (0,0), so the ImgRef it returns has x=0/y=0 regardless of where
+      // the window actually sits on the desktop, and toData(x,y,w,h)
+      // reads relative to that (0,0), i.e. the same window-relative
+      // space mousePosition already reports in. Adding alt1.rsX/rsY here
+      // used to double-offset into desktop-absolute coordinates that
+      // toData() was never expecting, which is why the watch stopped
+      // detecting anything real on any window not sitting at (0,0).
       const region = {
-        x: Math.round((window.alt1.rsX || 0) + lastPos.x - w / 2),
-        y: Math.round((window.alt1.rsY || 0) + lastPos.y - h / 2),
+        x: Math.round(lastPos.x - w / 2),
+        y: Math.round(lastPos.y - h / 2),
         w,
         h,
       };
