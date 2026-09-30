@@ -177,18 +177,3 @@ button.primary.waiting:hover { background: #5c4826; }
   min-height: 12px;
 }
 
-#flash-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: rgba(255, 204, 51, 0);
-  transition: background 60ms linear;
-  z-index: 999;
-}
-#flash-overlay.flash {
-  background: rgba(255, 204, 51, 0.28);
-}
-#flash-overlay.flash-accent {
-  background: rgba(255, 154, 60, 0.4);
-}
-

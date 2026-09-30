@@ -52,7 +52,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const tickFace = document.getElementById("tick-face");
   const tickCountEl = document.getElementById("tick-count");
   const tickTargetLabel = document.getElementById("tick-target-label");
-  const flashOverlay = document.getElementById("flash-overlay");
   const modeSelect = document.getElementById("mode-select");
   const tickTargetInput = document.getElementById("tick-target-input");
   const volumeInput = document.getElementById("volume-input");
@@ -98,15 +97,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (isArrival && (settings.mode === "visual" || settings.mode === "both")) {
       tickFace.classList.remove("pulse", "pulse-accent");
-      flashOverlay.classList.remove("flash", "flash-accent");
       void tickFace.offsetWidth; // force reflow so the animation restarts
       const cls = settings.accent ? "pulse-accent" : "pulse";
-      const flashCls = settings.accent ? "flash-accent" : "flash";
       tickFace.classList.add(cls);
-      flashOverlay.classList.add(flashCls);
       setTimeout(() => {
         tickFace.classList.remove(cls);
-        flashOverlay.classList.remove(flashCls);
       }, 140);
     }
 
@@ -147,7 +142,6 @@ document.addEventListener("DOMContentLoaded", () => {
       startStopBtn.classList.remove("running", "waiting");
       tickCountEl.textContent = "0";
       tickFace.classList.remove("pulse", "pulse-accent");
-      flashOverlay.classList.remove("flash", "flash-accent");
       overlay.clear();
       if (xpSyncWaiting) stopXpSyncOnce(wasWaiting ? "Cancelled." : "Stopped.");
     }
