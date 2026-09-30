@@ -9,7 +9,6 @@ const DEFAULT_SETTINGS = {
   volume: 70,
   accent: true,
   autosyncEnabled: false,
-  xpAutosyncEnabled: false,
   syncOffsetMs: 0, // shifts when a detected sync point actually lands, +later / -earlier
   overlayEnabled: false,
   overlaySize: 28,
@@ -33,12 +32,6 @@ function saveSettings(settings) {
     // best-effort only
   }
 }
-
-// Fixed size of the calibration viewport canvas -- zooming/panning changes
-// what part of the captured screenshot is drawn into it, never its own
-// element size, which keeps the click math in one place.
-const CAL_VIEWPORT_W = 560;
-const CAL_VIEWPORT_H = 420;
 
 document.addEventListener("DOMContentLoaded", () => {
   if (window.alt1) {
@@ -73,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const autosyncCheckbox = document.getElementById("autosync-checkbox");
   const autosyncStatus = document.getElementById("autosync-status");
   const calibrateXpBtn = document.getElementById("calibrate-xp-btn");
-  const xpAutosyncCheckbox = document.getElementById("xp-autosync-checkbox");
+  const xpSyncOnceBtn = document.getElementById("xp-sync-once-btn");
   const xpAutosyncStatus = document.getElementById("xp-autosync-status");
   const generalStatus = document.getElementById("general-status");
 
@@ -83,17 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlayColorSelect = document.getElementById("overlay-color-select");
   const overlayStatus = document.getElementById("overlay-status");
 
-  const calibrationModal = document.getElementById("calibration-modal");
-  const calibrationCanvas = document.getElementById("calibration-canvas");
-  const calibrationTitle = document.getElementById("calibration-title");
-  const calibrationHint = document.getElementById("calibration-hint");
-  const calibrationSizeRow = document.getElementById("calibration-size-row");
-  const calibrationWidth = document.getElementById("calibration-width");
-  const calibrationHeight = document.getElementById("calibration-height");
-  const calibrationCancelBtn = document.getElementById("calibration-cancel-btn");
-  const calibrationRecaptureBtn = document.getElementById("calibration-recapture-btn");
-  const calibrationZoomLabel = document.getElementById("calibration-zoom-label");
-  const calibrationZoomResetBtn = document.getElementById("calibration-zoom-reset-btn");
+  const abilityWidthInput = document.getElementById("ability-width");
+  const abilityHeightInput = document.getElementById("ability-height");
+  const xpWidthInput = document.getElementById("xp-width");
+  const xpHeightInput = document.getElementById("xp-height");
 
   // --- apply saved settings to controls ---
   modeSelect.value = settings.mode;
@@ -102,7 +88,6 @@ document.addEventListener("DOMContentLoaded", () => {
   accentCheckbox.checked = settings.accent;
   syncOffsetInput.value = settings.syncOffsetMs;
   autosyncCheckbox.checked = settings.autosyncEnabled;
-  xpAutosyncCheckbox.checked = settings.xpAutosyncEnabled;
   overlayEnabledCheckbox.checked = settings.overlayEnabled;
   overlaySizeInput.value = settings.overlaySize;
   overlayColorSelect.value = settings.overlayColor;
@@ -257,6 +242,85 @@ document.addEventListener("DOMContentLoaded", () => {
     overlayStatus.textContent = "Not positioned yet.";
   }
 
+  // --- hover-to-place overlay position ---
+  // Rather than clicking a spot on a static screenshot, this places the
+  // overlay by tracking the live cursor (alt1.mousePosition, which needs
+  // the "gamestate" permission) while the player hovers over the game,
+  // drawing a short-lived preview draw at that exact spot so they can see
+  // where it'll land before it's locked in. mousePosition is already
+  // RS-window-relative -- the same coordinate space overlay drawing uses
+  // -- so there's no origin math needed here, unlike the pixel-region
+  // calibration above.
+  const HOVER_CAPTURE_SECONDS = 3;
+  let hoverActive = false;
+  let hoverPreviewTimer = null;
+  let hoverCountdownTimer = null;
+
+  function decodeMousePosition(raw) {
+    if (typeof raw !== "number" || raw < 0) return null;
+    return { x: (raw >> 16) & 0xffff, y: raw & 0xffff };
+  }
+
+  function stopHoverPlacement(finalStatus) {
+    hoverActive = false;
+    if (hoverPreviewTimer) { clearInterval(hoverPreviewTimer); hoverPreviewTimer = null; }
+    if (hoverCountdownTimer) { clearInterval(hoverCountdownTimer); hoverCountdownTimer = null; }
+    overlay.clearPreview();
+    placeOverlayBtn.textContent = "Place overlay position (hover)...";
+    if (finalStatus !== undefined) overlayStatus.textContent = finalStatus;
+  }
+
+  function startHoverPlacement() {
+    if (!window.alt1) {
+      overlayStatus.textContent = "Alt1 isn't available.";
+      return;
+    }
+    if (!window.alt1.permissionGameState) {
+      overlayStatus.textContent = 'Needs the "Game state" permission to track your cursor -- you may need to remove and re-add the app once for the new permission to take effect.';
+      return;
+    }
+    if (!overlay.isAvailable()) {
+      overlayStatus.textContent = "Alt1 overlay permission isn't granted for this app.";
+      return;
+    }
+
+    hoverActive = true;
+    placeOverlayBtn.textContent = "Cancel";
+    let lastPos = null;
+    let secondsLeft = HOVER_CAPTURE_SECONDS;
+    overlayStatus.textContent = `Hover over the game where you want the counter -- capturing in ${secondsLeft}...`;
+
+    hoverPreviewTimer = setInterval(() => {
+      const pos = decodeMousePosition(window.alt1.mousePosition);
+      if (pos) {
+        lastPos = pos;
+        overlay.previewAt(pos.x, pos.y);
+      }
+    }, 80);
+
+    hoverCountdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft > 0) {
+        overlayStatus.textContent = `Hover over the game where you want the counter -- capturing in ${secondsLeft}...`;
+        return;
+      }
+      if (lastPos) {
+        overlay.setPosition(lastPos);
+        stopHoverPlacement(settings.overlayEnabled ? "Overlay is on." : "Positioned. Enable the checkbox to show it.");
+      } else {
+        stopHoverPlacement("Didn't catch your cursor over the game -- make sure the mouse is inside the RS window, then try again.");
+      }
+    }, 1000);
+  }
+
+  placeOverlayBtn.addEventListener("click", () => {
+    if (hoverActive) {
+      stopHoverPlacement(overlay.position ? (settings.overlayEnabled ? "Overlay is on." : "Positioned. Enable the checkbox to show it.") : "Not positioned yet.");
+    } else {
+      startHoverPlacement();
+    }
+  });
+
   // --- auto-sync (ability GCD) ---
   function autoSyncStatusText(text) {
     autosyncStatus.textContent = text;
@@ -301,236 +365,214 @@ document.addEventListener("DOMContentLoaded", () => {
     autoSyncStatusText(existing ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
   }
 
-  // --- auto-sync (XP drop) ---
+  // --- auto-sync (XP drop / RuneMetrics) ---
+  // This is one-shot rather than an always-on watcher: click it, do the
+  // action you want to sync to, and it stops itself the instant it
+  // catches the next change. Watching a whole RuneMetrics panel
+  // continuously turned out to be too easy to false-trigger on things
+  // that have nothing to do with your own tick timing -- XP/h rates on
+  // other tracked skills recalculating on their own schedule, a row
+  // highlighting on mouse hover, the scrollbar -- each of which would
+  // silently re-sync the metronome and made the count look like it kept
+  // "resetting" rather than counting properly. A one-shot catch avoids
+  // that: it only ever fires once per click, right when you're actually
+  // watching for it.
+  const XP_SYNC_TIMEOUT_MS = 8000;
+  let xpSyncWaiting = false;
+  let xpSyncTimeoutId = null;
+
   function xpAutoSyncStatusText(text) {
     xpAutosyncStatus.textContent = text;
   }
 
-  function startXpWatcher() {
-    const region = loadCalibration(XP_CALIBRATION_KEY);
-    if (!region) {
-      xpAutoSyncStatusText("Calibrate your XP drop spot first.");
-      xpAutosyncCheckbox.checked = false;
-      settings.xpAutosyncEnabled = false;
-      saveSettings(settings);
-      return;
-    }
-    if (xpWatcher) xpWatcher.stop();
-    xpWatcher = new AutoSyncWatcher(region, triggerSync, xpAutoSyncStatusText, "XP drop");
-    xpWatcher.start();
-  }
-
-  function stopXpWatcher() {
+  function stopXpSyncOnce(status) {
+    xpSyncWaiting = false;
     if (xpWatcher) {
       xpWatcher.stop();
       xpWatcher = null;
     }
-  }
-
-  xpAutosyncCheckbox.addEventListener("change", () => {
-    settings.xpAutosyncEnabled = xpAutosyncCheckbox.checked;
-    saveSettings(settings);
-    if (settings.xpAutosyncEnabled) {
-      startXpWatcher();
-    } else {
-      stopXpWatcher();
-      xpAutoSyncStatusText("");
+    if (xpSyncTimeoutId) {
+      clearTimeout(xpSyncTimeoutId);
+      xpSyncTimeoutId = null;
     }
-  });
-
-  if (settings.xpAutosyncEnabled) {
-    startXpWatcher();
-  } else {
-    const existingXp = loadCalibration(XP_CALIBRATION_KEY);
-    xpAutoSyncStatusText(existingXp ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
+    xpSyncOnceBtn.textContent = "Sync now from XP/RuneMetrics";
+    if (status !== undefined) xpAutoSyncStatusText(status);
   }
 
-  // ==========================================================================
-  // Calibration modal -- shared by the ability-slot region picker, the XP
-  // drop region picker (both auto-sync sources), and the overlay position
-  // picker, distinguished by `mode`.
-  // ==========================================================================
-
-  let calCapture = null; // { offCanvas, imgW, imgH, originX, originY }
-  let calView = null; // { zoom, srcCenterX, srcCenterY, _last }
-  let calMode = "ability"; // "ability" | "xp" | "overlay"
-
-  function calBaseScale() {
-    return Math.min(CAL_VIEWPORT_W / calCapture.imgW, CAL_VIEWPORT_H / calCapture.imgH);
-  }
-
-  function renderCalibrationViewport() {
-    const ctx = calibrationCanvas.getContext("2d");
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, CAL_VIEWPORT_W, CAL_VIEWPORT_H);
-
-    const scale = calBaseScale() * calView.zoom;
-    let srcW = CAL_VIEWPORT_W / scale;
-    let srcH = CAL_VIEWPORT_H / scale;
-    let srcX = calView.srcCenterX - srcW / 2;
-    let srcY = calView.srcCenterY - srcH / 2;
-
-    let destX = 0, destY = 0, destW = CAL_VIEWPORT_W, destH = CAL_VIEWPORT_H;
-
-    if (srcW <= calCapture.imgW) {
-      srcX = Math.max(0, Math.min(calCapture.imgW - srcW, srcX));
-    } else {
-      destW = calCapture.imgW * scale;
-      destX = (CAL_VIEWPORT_W - destW) / 2;
-      srcX = 0;
-      srcW = calCapture.imgW;
-    }
-    if (srcH <= calCapture.imgH) {
-      srcY = Math.max(0, Math.min(calCapture.imgH - srcH, srcY));
-    } else {
-      destH = calCapture.imgH * scale;
-      destY = (CAL_VIEWPORT_H - destH) / 2;
-      srcY = 0;
-      srcH = calCapture.imgH;
-    }
-
-    calView.srcCenterX = srcX + srcW / 2;
-    calView.srcCenterY = srcY + srcH / 2;
-
-    ctx.imageSmoothingEnabled = calView.zoom <= 2;
-    ctx.drawImage(calCapture.offCanvas, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
-
-    calView._last = { srcX, srcY, srcW, srcH, destX, destY, destW, destH };
-    calibrationZoomLabel.textContent = `Zoom: ${calView.zoom.toFixed(1)}x`;
-  }
-
-  function openCalibration(mode) {
-    calMode = mode;
-    const capture = captureForCalibration();
-    if (!capture) {
-      generalStatus.textContent = "Alt1 pixel permission isn't granted -- can't capture the screen to calibrate.";
+  function startXpSyncOnce() {
+    const region = loadCalibration(XP_CALIBRATION_KEY);
+    if (!region) {
+      xpAutoSyncStatusText("Calibrate your XP spot first.");
       return;
     }
-    const off = document.createElement("canvas");
-    off.width = capture.imageData.width;
-    off.height = capture.imageData.height;
-    off.getContext("2d").putImageData(capture.imageData, 0, 0);
+    xpSyncWaiting = true;
+    xpSyncOnceBtn.textContent = "Cancel (waiting for next XP update...)";
+    xpAutoSyncStatusText("Watching -- do the action you want to sync to now.");
+    xpWatcher = new AutoSyncWatcher(
+      region,
+      () => {
+        triggerSync();
+        stopXpSyncOnce("Synced.");
+      },
+      () => {},
+      "XP drop"
+    );
+    xpWatcher.start();
+    xpSyncTimeoutId = setTimeout(() => {
+      stopXpSyncOnce("Didn't catch a change in time -- try again while actively gaining XP.");
+    }, XP_SYNC_TIMEOUT_MS);
+  }
 
-    calCapture = {
-      offCanvas: off,
-      imgW: capture.imageData.width,
-      imgH: capture.imageData.height,
-      originX: capture.originX,
-      originY: capture.originY,
-    };
-    calView = {
-      zoom: 1,
-      srcCenterX: calCapture.imgW / 2,
-      srcCenterY: calCapture.imgH / 2,
-    };
-
-    if (mode === "ability") {
-      calibrationTitle.textContent = "Click the center of your ability slot";
-      calibrationHint.textContent = "This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). Scroll to zoom in on the cursor for a more precise click. You can re-run this any time your UI moves or rescales.";
-      calibrationSizeRow.style.display = "";
-      calibrationWidth.value = 34;
-      calibrationHeight.value = 34;
-    } else if (mode === "xp") {
-      calibrationTitle.textContent = "Click a screen-fixed XP indicator (not the floating text)";
-      calibrationHint.textContent = "Don't click text that floats above your character -- it moves with the camera and won't work here. Best option: open the RuneMetrics tab (press F7 if it's not bound to anything else) with 'Show precise values' and 'Show XP change value' turned on, then widen the box below to cover the whole panel and click its center -- any number updating in RuneMetrics happens on a tick, so watching the whole thing catches every source at once and keeps working at any level, including 200m XP. Your XP orb near the top of screen also works as a smaller, tighter target, but disappears once you're 120 in a skill and again at 200m. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
-      calibrationSizeRow.style.display = "";
-      calibrationWidth.value = 50;
-      calibrationHeight.value = 50;
+  xpSyncOnceBtn.addEventListener("click", () => {
+    if (xpSyncWaiting) {
+      stopXpSyncOnce("Cancelled.");
     } else {
-      calibrationTitle.textContent = "Click where you want the counter";
-      calibrationHint.textContent = "Click the spot on screen where the transparent number should appear. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
-      calibrationSizeRow.style.display = "none";
+      startXpSyncOnce();
     }
-
-    renderCalibrationViewport();
-    calibrationModal.classList.remove("hidden");
-  }
-
-  function closeCalibration() {
-    calibrationModal.classList.add("hidden");
-    calCapture = null;
-    calView = null;
-  }
-
-  calibrateBtn.addEventListener("click", () => openCalibration("ability"));
-  calibrateXpBtn.addEventListener("click", () => openCalibration("xp"));
-  placeOverlayBtn.addEventListener("click", () => openCalibration("overlay"));
-  calibrationCancelBtn.addEventListener("click", closeCalibration);
-  calibrationRecaptureBtn.addEventListener("click", () => openCalibration(calMode));
-  calibrationZoomResetBtn.addEventListener("click", () => {
-    if (!calView || !calCapture) return;
-    calView.zoom = 1;
-    calView.srcCenterX = calCapture.imgW / 2;
-    calView.srcCenterY = calCapture.imgH / 2;
-    renderCalibrationViewport();
   });
 
-  function viewportPointFromEvent(ev) {
-    const rect = calibrationCanvas.getBoundingClientRect();
-    const scaleX = CAL_VIEWPORT_W / rect.width;
-    const scaleY = CAL_VIEWPORT_H / rect.height;
+  {
+    const existingXp = loadCalibration(XP_CALIBRATION_KEY);
+    xpAutoSyncStatusText(existingXp ? "Calibrated. Click \"Sync now\" whenever you want to re-sync from it." : "Not calibrated yet.");
+  }
+
+  // ==========================================================================
+  // Hover-to-calibrate -- shared by the ability-slot region and the
+  // XP/RuneMetrics region (both auto-sync sources). Same idea as the
+  // overlay counter's own hover placement above: hover the spot in-game
+  // and hold still rather than clicking a shrunk, zoomed screenshot in a
+  // little in-app preview, which was fiddly to line up precisely. A live
+  // rectangle outline (drawn with the game's own overlay, at whatever
+  // width/height is set below) follows the cursor so you can see exactly
+  // what will be watched before it locks in.
+  // ==========================================================================
+
+  const REGION_PREVIEW_GROUP = "rs3metronomeRegionPreview";
+  let regionHoverActive = false;
+  let regionHoverKind = null; // "ability" | "xp"
+  let regionHoverPreviewTimer = null;
+  let regionHoverCountdownTimer = null;
+
+  function regionSizeInputs(kind) {
+    return kind === "ability"
+      ? { width: abilityWidthInput, height: abilityHeightInput }
+      : { width: xpWidthInput, height: xpHeightInput };
+  }
+
+  function clampedRegionSize(kind) {
+    const { width, height } = regionSizeInputs(kind);
     return {
-      vx: (ev.clientX - rect.left) * scaleX,
-      vy: (ev.clientY - rect.top) * scaleY,
+      w: Math.max(8, Math.min(800, parseInt(width.value, 10) || 34)),
+      h: Math.max(8, Math.min(800, parseInt(height.value, 10) || 34)),
     };
   }
 
-  calibrationCanvas.addEventListener("wheel", (ev) => {
-    if (!calView || !calCapture) return;
-    ev.preventDefault();
-    const { vx, vy } = viewportPointFromEvent(ev);
-    const m = calView._last;
-    const clampedVx = Math.max(m.destX, Math.min(m.destX + m.destW, vx));
-    const clampedVy = Math.max(m.destY, Math.min(m.destY + m.destH, vy));
-    const srcUnderX = m.srcX + (clampedVx - m.destX) * (m.srcW / m.destW);
-    const srcUnderY = m.srcY + (clampedVy - m.destY) * (m.srcH / m.destH);
-
-    const factor = ev.deltaY < 0 ? 1.25 : 1 / 1.25;
-    calView.zoom = Math.max(1, Math.min(15, calView.zoom * factor));
-    calView.srcCenterX = srcUnderX;
-    calView.srcCenterY = srcUnderY;
-    renderCalibrationViewport();
-  }, { passive: false });
-
-  calibrationCanvas.addEventListener("click", (ev) => {
-    if (!calCapture || !calView) return;
-    const { vx, vy } = viewportPointFromEvent(ev);
-    const m = calView._last;
-    if (vx < m.destX || vx > m.destX + m.destW || vy < m.destY || vy > m.destY + m.destH) {
-      return; // clicked in a letterboxed area -- not on the image
+  function drawRegionPreview(x, y, w, h) {
+    if (!window.alt1 || !window.alt1.permissionOverlay) return;
+    try {
+      window.alt1.overLayClearGroup(REGION_PREVIEW_GROUP);
+      window.alt1.overLaySetGroup(REGION_PREVIEW_GROUP);
+      window.alt1.overLayRect(A1lib.mixColor(255, 204, 51, 255), Math.round(x - w / 2), Math.round(y - h / 2), w, h, 200, 2);
+    } catch (e) {
+      // ignore
     }
-    const sourceX = m.srcX + (vx - m.destX) * (m.srcW / m.destW);
-    const sourceY = m.srcY + (vy - m.destY) * (m.srcH / m.destH);
+  }
 
-    if (calMode === "ability" || calMode === "xp") {
-      const w = Math.max(8, Math.min(800, parseInt(calibrationWidth.value, 10) || 34));
-      const h = Math.max(8, Math.min(800, parseInt(calibrationHeight.value, 10) || 34));
+  function clearRegionPreview() {
+    if (window.alt1 && window.alt1.permissionOverlay) {
+      try {
+        window.alt1.overLayClearGroup(REGION_PREVIEW_GROUP);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  function stopRegionHover(status) {
+    const kind = regionHoverKind;
+    regionHoverActive = false;
+    regionHoverKind = null;
+    if (regionHoverPreviewTimer) { clearInterval(regionHoverPreviewTimer); regionHoverPreviewTimer = null; }
+    if (regionHoverCountdownTimer) { clearInterval(regionHoverCountdownTimer); regionHoverCountdownTimer = null; }
+    clearRegionPreview();
+    calibrateBtn.textContent = "Calibrate ability slot (hover)...";
+    calibrateXpBtn.textContent = "Calibrate XP orb/indicator (hover)...";
+    calibrateBtn.disabled = false;
+    calibrateXpBtn.disabled = false;
+    if (status !== undefined && kind) {
+      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)(status);
+    }
+  }
+
+  function startRegionHover(kind) {
+    if (!window.alt1) {
+      generalStatus.textContent = "Alt1 isn't available.";
+      return;
+    }
+    if (!window.alt1.permissionGameState) {
+      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)('Needs the "Game state" permission to track your cursor -- you may need to remove and re-add the app once for the new permission to take effect.');
+      return;
+    }
+    if (!window.alt1.permissionPixel) {
+      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)("Alt1 pixel permission isn't granted -- needed to actually watch the spot once calibrated.");
+      return;
+    }
+
+    regionHoverActive = true;
+    regionHoverKind = kind;
+    const btn = kind === "ability" ? calibrateBtn : calibrateXpBtn;
+    const otherBtn = kind === "ability" ? calibrateXpBtn : calibrateBtn;
+    const statusFn = kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText;
+    btn.textContent = "Cancel";
+    otherBtn.disabled = true;
+
+    let lastPos = null;
+    let secondsLeft = HOVER_CAPTURE_SECONDS;
+    statusFn(`Hover over the spot to watch -- capturing in ${secondsLeft}...`);
+
+    regionHoverPreviewTimer = setInterval(() => {
+      const pos = decodeMousePosition(window.alt1.mousePosition);
+      if (pos) {
+        lastPos = pos;
+        const { w, h } = clampedRegionSize(kind);
+        drawRegionPreview(pos.x, pos.y, w, h);
+      }
+    }, 80);
+
+    regionHoverCountdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft > 0) {
+        statusFn(`Hover over the spot to watch -- capturing in ${secondsLeft}...`);
+        return;
+      }
+      if (!lastPos) {
+        stopRegionHover("Didn't catch your cursor over the game -- make sure the mouse is inside the RS window, then try again.");
+        return;
+      }
+      const { w, h } = clampedRegionSize(kind);
       const region = {
-        x: Math.round(calCapture.originX + sourceX - w / 2),
-        y: Math.round(calCapture.originY + sourceY - h / 2),
+        x: Math.round((window.alt1.rsX || 0) + lastPos.x - w / 2),
+        y: Math.round((window.alt1.rsY || 0) + lastPos.y - h / 2),
         w,
         h,
       };
-      if (calMode === "ability") {
+      if (kind === "ability") {
         saveCalibration(ABILITY_CALIBRATION_KEY, region);
-        closeCalibration();
-        autoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
+        stopRegionHover("Calibrated. Enable the checkbox to start watching.");
         if (settings.autosyncEnabled) startAbilityWatcher();
       } else {
         saveCalibration(XP_CALIBRATION_KEY, region);
-        closeCalibration();
-        xpAutoSyncStatusText("Calibrated. Enable the checkbox to start watching.");
-        if (settings.xpAutosyncEnabled) startXpWatcher();
+        stopRegionHover('Calibrated. Click "Sync now" whenever you want to re-sync from it.');
       }
-    } else {
-      // Overlay coordinates are RS-window-relative, which is exactly what
-      // the captured screenshot's own pixel offsets already are -- no
-      // origin to add here (unlike the ability-slot region above, which
-      // needs absolute screen coordinates for toData()/findSubimage()).
-      const pos = { x: Math.round(sourceX), y: Math.round(sourceY) };
-      overlay.setPosition(pos);
-      closeCalibration();
-      overlayStatus.textContent = settings.overlayEnabled ? "Overlay is on." : "Positioned. Enable the checkbox to show it.";
-    }
+    }, 1000);
+  }
+
+  calibrateBtn.addEventListener("click", () => {
+    if (regionHoverActive && regionHoverKind === "ability") stopRegionHover("Cancelled.");
+    else if (!regionHoverActive) startRegionHover("ability");
+  });
+  calibrateXpBtn.addEventListener("click", () => {
+    if (regionHoverActive && regionHoverKind === "xp") stopRegionHover("Cancelled.");
+    else if (!regionHoverActive) startRegionHover("xp");
   });
 });

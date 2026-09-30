@@ -63,13 +63,18 @@
   <fieldset>
     <legend>Auto-sync from XP drop (experimental)</legend>
     <div class="footer-note">
-      Watches a small region of your screen for the sudden pixel change that happens the instant an XP drop appears, and re-syncs the metronome to that moment automatically. Calibrate this on a screen-fixed spot -- your XP orb near the top of screen, or the "+xp" popup in the RuneMetrics tab (with "Show precise values" and "Show XP change value" on) -- never the text that floats above your character, which moves with the camera and won't work here. Needs a one-time calibration since everyone's UI scale and layout differs.
+      Watches a region of your screen for the sudden pixel change that happens the instant XP updates, and lets you re-sync the metronome to that moment on demand. Calibrate this on a screen-fixed spot -- your XP orb near the top of screen, or (recommended, works at any level) the whole RuneMetrics tab with "Show precise values" and "Show XP change value" on -- never the text that floats above your character, which moves with the camera and won't work here.
     </div>
-    <button id="calibrate-xp-btn">Calibrate XP orb/indicator...</button>
-    <label class="checkbox-row">
-      <input type="checkbox" id="xp-autosync-checkbox" />
-      Enable auto-sync from XP drop
-    </label>
+    <div class="setting-row">
+      <label for="xp-width">Spot size (px)</label>
+      <input type="number" id="xp-width" min="8" max="800" value="50" />
+      <span class="hint-text">width</span>
+      <input type="number" id="xp-height" min="8" max="800" value="50" />
+      <span class="hint-text">height</span>
+    </div>
+    <div class="hint-text">Set the size above first (widen it to cover the whole RuneMetrics panel if that's your target), then click below and hover the spot in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
+    <button id="calibrate-xp-btn">Calibrate XP orb/indicator (hover)...</button>
+    <button id="xp-sync-once-btn">Sync now from XP/RuneMetrics</button>
     <div id="xp-autosync-status" class="footer-note"></div>
   </fieldset>
 
@@ -78,7 +83,15 @@
     <div class="footer-note">
       Watches a small region of your screen for the sudden pixel change that happens the instant an ability's GCD cooldown starts sweeping across its icon, and re-syncs the metronome phase to that moment automatically. Needs a one-time calibration since everyone's ability bar sits somewhere different.
     </div>
-    <button id="calibrate-btn">Calibrate ability slot...</button>
+    <div class="setting-row">
+      <label for="ability-width">Spot size (px)</label>
+      <input type="number" id="ability-width" min="8" max="800" value="34" />
+      <span class="hint-text">width</span>
+      <input type="number" id="ability-height" min="8" max="800" value="34" />
+      <span class="hint-text">height</span>
+    </div>
+    <div class="hint-text">Click below, then hover your mouse over the ability icon whose cooldown sweep you want watched -- a live outline follows your cursor and locks in after a few seconds.</div>
+    <button id="calibrate-btn">Calibrate ability slot (hover)...</button>
     <label class="checkbox-row">
       <input type="checkbox" id="autosync-checkbox" />
       Enable auto-sync from calibrated slot
@@ -91,7 +104,10 @@
     <div class="footer-note">
       Draws the current count directly over the game (no window border, no background) at a spot you choose, so you can keep it in view without alt-tabbing to this app. Updates instantly, no fade or slide between numbers.
     </div>
-    <button id="place-overlay-btn">Place overlay position...</button>
+    <div class="footer-note">
+      To place it, hover your mouse over the game where you want the counter and hold still -- a live preview follows your cursor, and the position locks in automatically after a few seconds.
+    </div>
+    <button id="place-overlay-btn">Place overlay position (hover)...</button>
     <label class="checkbox-row">
       <input type="checkbox" id="overlay-enabled-checkbox" />
       Show overlay counter in-game
@@ -114,29 +130,6 @@
   </fieldset>
 
   <div class="footer-note" id="general-status"></div>
-
-  <div id="calibration-modal" class="modal hidden">
-    <div class="modal-inner">
-      <div class="modal-title" id="calibration-title">Click the center of your ability slot</div>
-      <div class="modal-hint" id="calibration-hint">This captures your current screen. Click directly on the ability icon whose cooldown sweep you want the metronome to watch (usually the first slot you press). Scroll to zoom in on the cursor for a more precise click. You can re-run this any time your UI moves or rescales.</div>
-      <canvas id="calibration-canvas" width="560" height="420"></canvas>
-      <div class="modal-zoom-row">
-        <span id="calibration-zoom-label">Zoom: 1.0x</span>
-        <button id="calibration-zoom-reset-btn">Reset zoom</button>
-      </div>
-      <div class="setting-row" id="calibration-size-row">
-        <label for="calibration-width">Spot size (px)</label>
-        <input type="number" id="calibration-width" min="8" max="800" value="34" />
-        <span class="hint-text">width</span>
-        <input type="number" id="calibration-height" min="8" max="800" value="34" />
-        <span class="hint-text">height</span>
-      </div>
-      <div class="modal-buttons">
-        <button id="calibration-cancel-btn">Cancel</button>
-        <button id="calibration-recapture-btn">Recapture</button>
-      </div>
-    </div>
-  </div>
 
   <script src="metronome.js"></script>
   <script src="sync.js"></script>

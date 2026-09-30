@@ -20,6 +20,7 @@
 
 const OVERLAY_POSITION_KEY = "rs3metronome.overlay.position";
 const OVERLAY_GROUP = "rs3metronomeCounter";
+const OVERLAY_PREVIEW_GROUP = "rs3metronomeCounterPreview";
 
 const OVERLAY_COLORS = {
   gold: [255, 204, 51],
@@ -98,6 +99,32 @@ class OverlayCounter {
     if (this.isAvailable()) {
       try {
         window.alt1.overLayClearGroup(OVERLAY_GROUP);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  // A short-lived preview draw at an arbitrary (x, y), used while the
+  // player is hovering to place the overlay -- separate group from the
+  // real counter so the two never fight over the same slot.
+  previewAt(x, y) {
+    if (!this.isAvailable()) return;
+    const [r, g, b] = OVERLAY_COLORS[this.colorName] || OVERLAY_COLORS.gold;
+    const color = A1lib.mixColor(r, g, b, 255);
+    try {
+      window.alt1.overLayClearGroup(OVERLAY_PREVIEW_GROUP);
+      window.alt1.overLaySetGroup(OVERLAY_PREVIEW_GROUP);
+      window.alt1.overLayTextEx("1", color, this.size, x, y, 200, "", true, true);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  clearPreview() {
+    if (this.isAvailable()) {
+      try {
+        window.alt1.overLayClearGroup(OVERLAY_PREVIEW_GROUP);
       } catch (e) {
         // ignore
       }

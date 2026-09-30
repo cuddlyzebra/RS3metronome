@@ -25,10 +25,23 @@
 //
 // Since ability bar position, XP/RuneMetrics position, and UI scale are
 // all up to each player, there's no fixed landmark to hard-code for
-// either -- this asks the player to calibrate once per source by
-// clicking the spot in a captured screenshot shown inside the app. Both
-// calibrations are stored under their own key so they don't overwrite
-// each other.
+// either -- this asks the player to calibrate once per source, by
+// hovering their mouse over the target spot in-game (app.js reads
+// alt1.mousePosition for that, live, with a short in-game preview rect
+// so they can see the watched box before it locks in). Both calibrations
+// are stored under their own key so they don't overwrite each other.
+//
+// The ability-GCD source runs continuously once enabled, re-syncing on
+// every detected sweep, which is fine because its target (one ability
+// icon) rarely changes for reasons unrelated to a GCD starting. The
+// RuneMetrics/XP source is used one-shot instead (app.js arms it, waits
+// for the next detected change, then disarms itself): watching a whole
+// RuneMetrics panel continuously turned out to false-trigger on other
+// tracked skills' XP/h recalculating on their own schedule, row hover
+// highlighting, and the like, each of which would silently re-sync the
+// metronome and made the count look like it kept resetting rather than
+// counting properly. One-shot avoids that by only ever catching exactly
+// one change per click.
 
 function loadCalibration(storageKey) {
   try {
@@ -57,17 +70,6 @@ function clearCalibration(storageKey) {
 
 function isAlt1Available() {
   return typeof window.alt1 !== "undefined" && window.alt1.permissionPixel;
-}
-
-// Captures the full RS window for the calibration UI to display. Returns
-// { imageData, originX, originY } -- originX/Y are the capture's own
-// screen offset (img.x/img.y), needed to convert a click on the displayed
-// (possibly scaled-down) preview back into absolute screen coordinates.
-function captureForCalibration() {
-  if (!isAlt1Available()) return null;
-  const img = A1lib.captureHoldFullRs();
-  const pixels = img.toData(img.x, img.y, img.width, img.height);
-  return { imageData: pixels, originX: img.x, originY: img.y };
 }
 
 // Watches a calibrated screen region for a sudden pixel change and calls
