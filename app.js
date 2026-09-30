@@ -431,8 +431,8 @@ document.addEventListener("DOMContentLoaded", () => {
       calibrationWidth.value = 34;
       calibrationHeight.value = 34;
     } else if (mode === "xp") {
-      calibrationTitle.textContent = "Click your fixed-position XP indicator (not the floating text)";
-      calibrationHint.textContent = "Don't click text that floats above your character -- it moves with the camera and won't work here. Best option: the '+xp' popup next to a skill's row in the RuneMetrics tab (open it with 'Show precise values' and 'Show XP change value' turned on) -- it keeps working at any level, including 200m XP. Your XP orb near the top of screen also works, but disappears once you're 120 in a skill and again at 200m. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
+      calibrationTitle.textContent = "Click a screen-fixed XP indicator (not the floating text)";
+      calibrationHint.textContent = "Don't click text that floats above your character -- it moves with the camera and won't work here. Best option: open the RuneMetrics tab (press F7 if it's not bound to anything else) with 'Show precise values' and 'Show XP change value' turned on, then widen the box below to cover the whole panel and click its center -- any number updating in RuneMetrics happens on a tick, so watching the whole thing catches every source at once and keeps working at any level, including 200m XP. Your XP orb near the top of screen also works as a smaller, tighter target, but disappears once you're 120 in a skill and again at 200m. Scroll to zoom in for a more precise click. You can re-run this any time you move your UI.";
       calibrationSizeRow.style.display = "";
       calibrationWidth.value = 50;
       calibrationHeight.value = 50;
@@ -503,8 +503,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const sourceY = m.srcY + (vy - m.destY) * (m.srcH / m.destH);
 
     if (calMode === "ability" || calMode === "xp") {
-      const w = Math.max(8, Math.min(400, parseInt(calibrationWidth.value, 10) || 34));
-      const h = Math.max(8, Math.min(400, parseInt(calibrationHeight.value, 10) || 34));
+      const w = Math.max(8, Math.min(800, parseInt(calibrationWidth.value, 10) || 34));
+      const h = Math.max(8, Math.min(800, parseInt(calibrationHeight.value, 10) || 34));
       const region = {
         x: Math.round(calCapture.originX + sourceX - w / 2),
         y: Math.round(calCapture.originY + sourceY - h / 2),

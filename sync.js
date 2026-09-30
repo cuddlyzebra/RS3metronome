@@ -5,22 +5,30 @@
 // use, and it works regardless of UI layout or scale.
 //
 // The experimental extras are two auto-sync sources, both built on the
-// same idea: watch a small, calibrated screen region for a sudden pixel
-// change, and treat that instant as the new tick 0. Neither needs to read
-// or understand what's actually there (no OCR) -- just "did this small
-// patch of screen suddenly look very different", which is cheap to poll
-// many times a second:
+// same idea: watch a calibrated screen region for a sudden pixel change,
+// and treat that instant as the new tick 0. Neither needs to read or
+// understand what's actually there (no OCR) -- just "did enough of this
+// region suddenly look different", which is cheap to poll many times a
+// second by counting changed samples rather than comparing whole images:
 //
-//   - An XP drop appearing is a small patch of screen going from empty
-//     (or whatever was behind it) to bright drop text, all at once.
+//   - An XP drop appearing -- or any value updating in the RuneMetrics
+//     tab, which the game only ever does on a tick -- is a patch of
+//     screen going from unchanged to visibly different all at once.
+//     RuneMetrics is a good target for this precisely because it can be
+//     calibrated loosely: watching the *whole panel* rather than one
+//     exact row works fine, since any of its numbers changing is itself
+//     the tick signal, and a changed-sample count (rather than an
+//     average over the region) stays sensitive to a small patch of
+//     updated digits even inside a much bigger watched box.
 //   - A GCD starting sweeps a cooldown overlay across an ability's icon,
 //     a large, sudden change confined to that one icon.
 //
-// Since ability bar position, XP drop position, and UI scale are all up
-// to each player, there's no fixed landmark to hard-code for either --
-// this asks the player to calibrate once per source by clicking the spot
-// in a captured screenshot shown inside the app. Both calibrations are
-// stored under their own key so they don't overwrite each other.
+// Since ability bar position, XP/RuneMetrics position, and UI scale are
+// all up to each player, there's no fixed landmark to hard-code for
+// either -- this asks the player to calibrate once per source by
+// clicking the spot in a captured screenshot shown inside the app. Both
+// calibrations are stored under their own key so they don't overwrite
+// each other.
 
 function loadCalibration(storageKey) {
   try {
@@ -82,8 +90,17 @@ class AutoSyncWatcher {
     this.onStatus = onStatus || (() => {});
     this.label = label || "change";
     this.pollMs = 45;
-    this.changeThreshold = 18; // avg per-channel brightness delta to count as "big"
-    this.quietThreshold = 6;
+    // Detection is based on a *count* of samples that changed a lot
+    // between polls, not an average change across the whole region. A
+    // region can be anything from a tight 34x34 ability icon (where a
+    // GCD sweep changes most of the box) to an entire RuneMetrics panel
+    // (where a tick's worth of updated digits changes only a small
+    // fraction of a much bigger box) -- averaging would dilute a small
+    // update to nothing in a big box, but a count of changed samples
+    // stays meaningful regardless of how much unchanged UI surrounds it.
+    this.perSampleThreshold = 45; // summed abs R+G+B delta to count one sample as "changed"
+    this.triggerCount = 14; // changed samples needed to fire while armed
+    this.quietCount = 4; // changed samples below which the region counts as "quiet" again
     this.quietStreakNeeded = 3;
     this._timer = null;
     this._lastPixels = null;
@@ -137,20 +154,20 @@ class AutoSyncWatcher {
 
     const pixels = data.data;
     if (this._lastPixels) {
-      const delta = averageAbsDelta(pixels, this._lastPixels);
+      const changed = changedSampleCount(pixels, this._lastPixels, this.perSampleThreshold);
       const now = performance.now();
 
       if (this._armed) {
-        if (delta > this.changeThreshold) {
+        if (changed > this.triggerCount) {
           this._armed = false;
           this._quietStreak = 0;
           this._lastTriggerAt = now;
-          this.onStatus(`${this.label} detected -- synced (change ${delta.toFixed(1)}).`);
+          this.onStatus(`${this.label} detected -- synced (${changed} px changed).`);
           this.onTrigger();
         }
       } else {
         const sinceTrigger = now - this._lastTriggerAt;
-        if (delta < this.quietThreshold) {
+        if (changed < this.quietCount) {
           this._quietStreak++;
         } else {
           this._quietStreak = 0;
@@ -165,17 +182,19 @@ class AutoSyncWatcher {
   }
 }
 
-function averageAbsDelta(a, b) {
+function changedSampleCount(a, b, perSampleThreshold) {
   // RGBA byte arrays of equal length. Sampling every 4th pixel (skip 3
-  // pixels between samples) keeps this cheap at 45ms polling without
-  // losing sensitivity -- a real trigger event changes a large fraction
-  // of the region, not a couple of stray pixels.
-  let sum = 0;
+  // pixels between samples) keeps this cheap at 45ms polling even over a
+  // large region. Counts how many sampled pixels changed by more than
+  // perSampleThreshold (summed abs R+G+B delta) between polls -- a count
+  // stays meaningful whether the watched region is a tight icon (most of
+  // it changes at once) or a whole panel (only a small patch of digits
+  // changes at once), unlike an average over the whole region.
   let count = 0;
   const step = 16; // 4 pixels * 4 bytes
   for (let i = 0; i < a.length; i += step) {
-    sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-    count += 3;
+    const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    if (d > perSampleThreshold) count++;
   }
-  return count ? sum / count : 0;
+  return count;
 }
