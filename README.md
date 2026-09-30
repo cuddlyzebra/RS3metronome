@@ -42,9 +42,8 @@ A drift-corrected 600ms scheduler fires every tick. Each tick:
 
 ### Staying in sync
 
-The metronome runs freely from whenever you hit Start, which won't line up with the server's actual tick boundary on its own. A few ways to correct that:
+The metronome runs freely from whenever you hit Start, which won't line up with the server's actual tick boundary on its own. Syncing it to a RuneMetrics update corrects that:
 
-- **Tap to sync (reliable, always available).** The instant you see an XP drop or an update in your RuneMetrics tab, click "Tap to sync". That instant becomes the new tick 0, and everything schedules from there. This is the same technique real OSRS tick tools rely on, and it works regardless of your UI layout.
 - **Sync from RuneMetrics (experimental).** RuneMetrics only ever updates on a game tick, and it doesn't matter which value moves -- an XP total, an XP/h rate, anything -- any change in the panel is itself a valid tick signal, which is why this watches the whole tab rather than one exact number. Open the RuneMetrics tab (press F7 if it's not bound to anything else) with **"Show precise values"** and **"Show XP change value"** turned on. Click "Calibrate RuneMetrics tab (hover)...", then hover your mouse over the panel in-game -- a live outline follows your cursor and locks in after a few seconds; widen the spot size first if it doesn't cover the whole panel.
 
   **This has to be calibrated on the RuneMetrics tab itself, not the "+93 xp" text that floats above your character in the world** -- that text drifts with every camera turn, which breaks a region watch. RuneMetrics stays fixed regardless of camera movement, and keeps working at any level, including 200m XP in a skill.
@@ -68,7 +67,7 @@ This all needs the "Game state" permission (for reading your live cursor positio
 - **Output**: visual + audio, visual only, or audio only.
 - **Count to (ticks)**: defaults to 3 (the GCD), but set it to whatever run length you're tracking.
 - **Volume** and whether the arrival tick is accented (a distinct tone, and the flash).
-- **Sync offset (ms)**: shifts exactly when a sync (tap or auto) actually lands, -600 to +600ms. See the auto-sync note above -- this is the main knob for correcting a sync source that's consistently early or late.
+- **Sync offset (ms)**: shifts exactly when a RuneMetrics sync actually lands, -600 to +600ms. See the auto-sync note above -- this is the main knob for correcting a sync source that's consistently early or late.
 
 All settings and your calibration are saved locally on your own computer (not synced anywhere) and persist across restarts.
 
@@ -82,10 +81,6 @@ All settings and your calibration are saved locally on your own computer (not sy
 - **"Needs the Game state permission" when calibrating anything.** Remove and re-add the app once so Alt1 prompts for the new permission -- this was added alongside hover-based calibration and older installs won't have it yet.
 - **Hover calibration says it didn't catch your cursor.** Your mouse needs to be over the RS game window (not this app, not another monitor) when the countdown reaches zero -- try again and keep it steady on the target spot until the status line confirms.
 - **Nothing happens when clicking install.** Make sure Alt1 is running first -- the `alt1://` link needs Alt1 registered as a protocol handler, which only happens once Alt1's been installed and run at least once.
-
-## What's next
-
-- Possibly: a keybind for "tap to sync" that works even when the app isn't focused, if Alt1's binding API supports it cleanly.
 
 ## Credit
 

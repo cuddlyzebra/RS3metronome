@@ -49,7 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- element refs ---
   const startStopBtn = document.getElementById("start-stop-btn");
-  const syncBtn = document.getElementById("sync-btn");
   const tickFace = document.getElementById("tick-face");
   const tickCountEl = document.getElementById("tick-count");
   const tickTargetLabel = document.getElementById("tick-target-label");
@@ -85,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
   tickTargetLabel.textContent = `counting to ${settings.tickTarget}`;
 
   if (!window.alt1 || !window.alt1.permissionPixel) {
-    generalStatus.textContent = "Alt1 pixel permission isn't granted -- tap-to-sync and the metronome still work, but auto-sync needs it.";
+    generalStatus.textContent = "Alt1 pixel permission isn't granted -- the metronome itself still works, but syncing to RuneMetrics needs it.";
   }
 
   // --- tick handling ---
@@ -142,9 +141,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setRunning(!engine.running);
   });
 
-  // Shared by manual tap-to-sync and auto-sync: re-anchors tick 0 to
-  // "now" (or a moment shifted by the sync-offset setting) and makes
-  // sure the transport shows as running.
+  // Called by RuneMetrics auto-sync: re-anchors tick 0 to "now" (or a
+  // moment shifted by the sync-offset setting) and makes sure the
+  // transport shows as running.
   function triggerSync() {
     engine.syncNow(performance.now() + (settings.syncOffsetMs || 0));
     if (!startStopBtn.classList.contains("running")) {
@@ -152,8 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
       startStopBtn.classList.add("running");
     }
   }
-
-  syncBtn.addEventListener("click", triggerSync);
 
   // --- settings wiring ---
   modeSelect.addEventListener("change", () => {

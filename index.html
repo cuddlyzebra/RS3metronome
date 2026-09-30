@@ -21,7 +21,6 @@
     </div>
     <div class="transport">
       <button class="primary" id="start-stop-btn">Start</button>
-      <button id="sync-btn" title="Tap the instant you see an XP drop or GCD start">Tap to sync</button>
     </div>
   </fieldset>
 
@@ -57,7 +56,7 @@
       <label for="sync-offset-input">Sync offset (ms)</label>
       <input type="number" id="sync-offset-input" min="-600" max="600" step="10" value="0" />
     </div>
-    <div class="hint-text offset-hint">Shifts exactly when a sync (tap or auto) lands. If RuneMetrics auto-sync consistently lands a tick late (it confirms slightly after the fact), lower this. If tap-to-sync consistently lands late because of your own reaction time, lower it too (negative is earlier).</div>
+    <div class="hint-text offset-hint">Shifts exactly when a RuneMetrics sync lands. If it consistently lands a tick late (RuneMetrics confirms slightly after the fact), lower this.</div>
   </fieldset>
 
   <fieldset>

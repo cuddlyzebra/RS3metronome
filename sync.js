@@ -1,10 +1,6 @@
 // Sync sources for the tick metronome.
 //
-// The reliable baseline is manual "tap to sync": you tap the instant you
-// see an XP drop or a GCD start, the same technique real OSRS tick tools
-// use, and it works regardless of UI layout or scale.
-//
-// The experimental extra is auto-sync from the RuneMetrics tab: watch a
+// The sole sync source is auto-sync from the RuneMetrics tab: watch a
 // calibrated screen region for a sudden pixel change, and treat that
 // instant as the new tick 0. It doesn't need to read or understand
 // what's actually there (no OCR) -- just "did enough of this region
