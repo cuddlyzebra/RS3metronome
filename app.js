@@ -1,14 +1,12 @@
 // Wires the tick engine, audio, visuals, overlay and settings together.
 
 const SETTINGS_KEY = "rs3metronome.settings";
-const ABILITY_CALIBRATION_KEY = "rs3metronome.autosync.region";
 const XP_CALIBRATION_KEY = "rs3metronome.autosync.xpregion";
 const DEFAULT_SETTINGS = {
   mode: "both", // "both" | "visual" | "audio"
   tickTarget: 3, // e.g. 3 for the 1.8s/3-tick GCD
   volume: 70,
   accent: true,
-  autosyncEnabled: false,
   syncOffsetMs: 0, // shifts when a detected sync point actually lands, +later / -earlier
   overlayEnabled: false,
   overlaySize: 28,
@@ -47,7 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
   overlay.setSize(settings.overlaySize);
   overlay.setColorName(settings.overlayColor);
 
-  let abilityWatcher = null;
   let xpWatcher = null;
 
   // --- element refs ---
@@ -62,9 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const volumeInput = document.getElementById("volume-input");
   const accentCheckbox = document.getElementById("accent-checkbox");
   const syncOffsetInput = document.getElementById("sync-offset-input");
-  const calibrateBtn = document.getElementById("calibrate-btn");
-  const autosyncCheckbox = document.getElementById("autosync-checkbox");
-  const autosyncStatus = document.getElementById("autosync-status");
   const calibrateXpBtn = document.getElementById("calibrate-xp-btn");
   const xpSyncOnceBtn = document.getElementById("xp-sync-once-btn");
   const xpAutosyncStatus = document.getElementById("xp-autosync-status");
@@ -76,8 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlayColorSelect = document.getElementById("overlay-color-select");
   const overlayStatus = document.getElementById("overlay-status");
 
-  const abilityWidthInput = document.getElementById("ability-width");
-  const abilityHeightInput = document.getElementById("ability-height");
   const xpWidthInput = document.getElementById("xp-width");
   const xpHeightInput = document.getElementById("xp-height");
 
@@ -87,7 +79,6 @@ document.addEventListener("DOMContentLoaded", () => {
   volumeInput.value = settings.volume;
   accentCheckbox.checked = settings.accent;
   syncOffsetInput.value = settings.syncOffsetMs;
-  autosyncCheckbox.checked = settings.autosyncEnabled;
   overlayEnabledCheckbox.checked = settings.overlayEnabled;
   overlaySizeInput.value = settings.overlaySize;
   overlayColorSelect.value = settings.overlayColor;
@@ -242,24 +233,27 @@ document.addEventListener("DOMContentLoaded", () => {
     overlayStatus.textContent = "Not positioned yet.";
   }
 
-  // --- hover-to-place overlay position ---
-  // Rather than clicking a spot on a static screenshot, this places the
-  // overlay by tracking the live cursor (alt1.mousePosition, which needs
-  // the "gamestate" permission) while the player hovers over the game,
-  // drawing a short-lived preview draw at that exact spot so they can see
-  // where it'll land before it's locked in. mousePosition is already
-  // RS-window-relative -- the same coordinate space overlay drawing uses
-  // -- so there's no origin math needed here, unlike the pixel-region
-  // calibration above.
+  // ==========================================================================
+  // Hover-to-place / hover-to-calibrate. Two flows share the same idea:
+  // hover the mouse over the target spot in-game and hold still, rather
+  // than clicking a shrunk, zoomed screenshot in a little in-app preview.
+  // alt1.mousePosition (needs the "gamestate" permission) gives the live
+  // cursor position, RS-window-relative -- the same coordinate space
+  // overlay drawing uses, and (via alt1.rsX/rsY) convertible to the
+  // absolute screen coordinates the pixel-region watcher needs.
+  // ==========================================================================
+
   const HOVER_CAPTURE_SECONDS = 3;
-  let hoverActive = false;
-  let hoverPreviewTimer = null;
-  let hoverCountdownTimer = null;
 
   function decodeMousePosition(raw) {
     if (typeof raw !== "number" || raw < 0) return null;
     return { x: (raw >> 16) & 0xffff, y: raw & 0xffff };
   }
+
+  // --- hover-to-place overlay position (a point) ---
+  let hoverActive = false;
+  let hoverPreviewTimer = null;
+  let hoverCountdownTimer = null;
 
   function stopHoverPlacement(finalStatus) {
     hoverActive = false;
@@ -321,149 +315,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- auto-sync (ability GCD) ---
-  function autoSyncStatusText(text) {
-    autosyncStatus.textContent = text;
-  }
-
-  function startAbilityWatcher() {
-    const region = loadCalibration(ABILITY_CALIBRATION_KEY);
-    if (!region) {
-      autoSyncStatusText("Calibrate an ability slot first.");
-      autosyncCheckbox.checked = false;
-      settings.autosyncEnabled = false;
-      saveSettings(settings);
-      return;
-    }
-    if (abilityWatcher) abilityWatcher.stop();
-    abilityWatcher = new AutoSyncWatcher(region, triggerSync, autoSyncStatusText, "GCD");
-    abilityWatcher.start();
-  }
-
-  function stopAbilityWatcher() {
-    if (abilityWatcher) {
-      abilityWatcher.stop();
-      abilityWatcher = null;
-    }
-  }
-
-  autosyncCheckbox.addEventListener("change", () => {
-    settings.autosyncEnabled = autosyncCheckbox.checked;
-    saveSettings(settings);
-    if (settings.autosyncEnabled) {
-      startAbilityWatcher();
-    } else {
-      stopAbilityWatcher();
-      autoSyncStatusText("");
-    }
-  });
-
-  if (settings.autosyncEnabled) {
-    startAbilityWatcher();
-  } else {
-    const existing = loadCalibration(ABILITY_CALIBRATION_KEY);
-    autoSyncStatusText(existing ? "Calibrated. Enable the checkbox to start watching." : "Not calibrated yet.");
-  }
-
-  // --- auto-sync (XP drop / RuneMetrics) ---
-  // This is one-shot rather than an always-on watcher: click it, do the
-  // action you want to sync to, and it stops itself the instant it
-  // catches the next change. Watching a whole RuneMetrics panel
-  // continuously turned out to be too easy to false-trigger on things
-  // that have nothing to do with your own tick timing -- XP/h rates on
-  // other tracked skills recalculating on their own schedule, a row
-  // highlighting on mouse hover, the scrollbar -- each of which would
-  // silently re-sync the metronome and made the count look like it kept
-  // "resetting" rather than counting properly. A one-shot catch avoids
-  // that: it only ever fires once per click, right when you're actually
-  // watching for it.
-  const XP_SYNC_TIMEOUT_MS = 8000;
-  let xpSyncWaiting = false;
-  let xpSyncTimeoutId = null;
+  // --- hover-to-calibrate the RuneMetrics/XP watch region (a box) ---
+  const REGION_PREVIEW_GROUP = "rs3metronomeRegionPreview";
+  let regionHoverActive = false;
+  let regionHoverPreviewTimer = null;
+  let regionHoverCountdownTimer = null;
 
   function xpAutoSyncStatusText(text) {
     xpAutosyncStatus.textContent = text;
   }
 
-  function stopXpSyncOnce(status) {
-    xpSyncWaiting = false;
-    if (xpWatcher) {
-      xpWatcher.stop();
-      xpWatcher = null;
-    }
-    if (xpSyncTimeoutId) {
-      clearTimeout(xpSyncTimeoutId);
-      xpSyncTimeoutId = null;
-    }
-    xpSyncOnceBtn.textContent = "Sync now from XP/RuneMetrics";
-    if (status !== undefined) xpAutoSyncStatusText(status);
-  }
-
-  function startXpSyncOnce() {
-    const region = loadCalibration(XP_CALIBRATION_KEY);
-    if (!region) {
-      xpAutoSyncStatusText("Calibrate your XP spot first.");
-      return;
-    }
-    xpSyncWaiting = true;
-    xpSyncOnceBtn.textContent = "Cancel (waiting for next XP update...)";
-    xpAutoSyncStatusText("Watching -- do the action you want to sync to now.");
-    xpWatcher = new AutoSyncWatcher(
-      region,
-      () => {
-        triggerSync();
-        stopXpSyncOnce("Synced.");
-      },
-      () => {},
-      "XP drop"
-    );
-    xpWatcher.start();
-    xpSyncTimeoutId = setTimeout(() => {
-      stopXpSyncOnce("Didn't catch a change in time -- try again while actively gaining XP.");
-    }, XP_SYNC_TIMEOUT_MS);
-  }
-
-  xpSyncOnceBtn.addEventListener("click", () => {
-    if (xpSyncWaiting) {
-      stopXpSyncOnce("Cancelled.");
-    } else {
-      startXpSyncOnce();
-    }
-  });
-
-  {
-    const existingXp = loadCalibration(XP_CALIBRATION_KEY);
-    xpAutoSyncStatusText(existingXp ? "Calibrated. Click \"Sync now\" whenever you want to re-sync from it." : "Not calibrated yet.");
-  }
-
-  // ==========================================================================
-  // Hover-to-calibrate -- shared by the ability-slot region and the
-  // XP/RuneMetrics region (both auto-sync sources). Same idea as the
-  // overlay counter's own hover placement above: hover the spot in-game
-  // and hold still rather than clicking a shrunk, zoomed screenshot in a
-  // little in-app preview, which was fiddly to line up precisely. A live
-  // rectangle outline (drawn with the game's own overlay, at whatever
-  // width/height is set below) follows the cursor so you can see exactly
-  // what will be watched before it locks in.
-  // ==========================================================================
-
-  const REGION_PREVIEW_GROUP = "rs3metronomeRegionPreview";
-  let regionHoverActive = false;
-  let regionHoverKind = null; // "ability" | "xp"
-  let regionHoverPreviewTimer = null;
-  let regionHoverCountdownTimer = null;
-
-  function regionSizeInputs(kind) {
-    return kind === "ability"
-      ? { width: abilityWidthInput, height: abilityHeightInput }
-      : { width: xpWidthInput, height: xpHeightInput };
-  }
-
-  function clampedRegionSize(kind) {
-    const { width, height } = regionSizeInputs(kind);
+  function clampedXpRegionSize() {
     return {
-      w: Math.max(8, Math.min(800, parseInt(width.value, 10) || 34)),
-      h: Math.max(8, Math.min(800, parseInt(height.value, 10) || 34)),
+      w: Math.max(8, Math.min(800, parseInt(xpWidthInput.value, 10) || 50)),
+      h: Math.max(8, Math.min(800, parseInt(xpHeightInput.value, 10) || 50)),
     };
   }
 
@@ -489,52 +354,40 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function stopRegionHover(status) {
-    const kind = regionHoverKind;
     regionHoverActive = false;
-    regionHoverKind = null;
     if (regionHoverPreviewTimer) { clearInterval(regionHoverPreviewTimer); regionHoverPreviewTimer = null; }
     if (regionHoverCountdownTimer) { clearInterval(regionHoverCountdownTimer); regionHoverCountdownTimer = null; }
     clearRegionPreview();
-    calibrateBtn.textContent = "Calibrate ability slot (hover)...";
-    calibrateXpBtn.textContent = "Calibrate XP orb/indicator (hover)...";
-    calibrateBtn.disabled = false;
-    calibrateXpBtn.disabled = false;
-    if (status !== undefined && kind) {
-      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)(status);
-    }
+    calibrateXpBtn.textContent = "Calibrate RuneMetrics tab (hover)...";
+    if (status !== undefined) xpAutoSyncStatusText(status);
   }
 
-  function startRegionHover(kind) {
+  function startRegionHover() {
     if (!window.alt1) {
       generalStatus.textContent = "Alt1 isn't available.";
       return;
     }
     if (!window.alt1.permissionGameState) {
-      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)('Needs the "Game state" permission to track your cursor -- you may need to remove and re-add the app once for the new permission to take effect.');
+      xpAutoSyncStatusText('Needs the "Game state" permission to track your cursor -- you may need to remove and re-add the app once for the new permission to take effect.');
       return;
     }
     if (!window.alt1.permissionPixel) {
-      (kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText)("Alt1 pixel permission isn't granted -- needed to actually watch the spot once calibrated.");
+      xpAutoSyncStatusText("Alt1 pixel permission isn't granted -- needed to actually watch the spot once calibrated.");
       return;
     }
 
     regionHoverActive = true;
-    regionHoverKind = kind;
-    const btn = kind === "ability" ? calibrateBtn : calibrateXpBtn;
-    const otherBtn = kind === "ability" ? calibrateXpBtn : calibrateBtn;
-    const statusFn = kind === "ability" ? autoSyncStatusText : xpAutoSyncStatusText;
-    btn.textContent = "Cancel";
-    otherBtn.disabled = true;
+    calibrateXpBtn.textContent = "Cancel";
 
     let lastPos = null;
     let secondsLeft = HOVER_CAPTURE_SECONDS;
-    statusFn(`Hover over the spot to watch -- capturing in ${secondsLeft}...`);
+    xpAutoSyncStatusText(`Hover over the RuneMetrics tab -- capturing in ${secondsLeft}...`);
 
     regionHoverPreviewTimer = setInterval(() => {
       const pos = decodeMousePosition(window.alt1.mousePosition);
       if (pos) {
         lastPos = pos;
-        const { w, h } = clampedRegionSize(kind);
+        const { w, h } = clampedXpRegionSize();
         drawRegionPreview(pos.x, pos.y, w, h);
       }
     }, 80);
@@ -542,37 +395,101 @@ document.addEventListener("DOMContentLoaded", () => {
     regionHoverCountdownTimer = setInterval(() => {
       secondsLeft--;
       if (secondsLeft > 0) {
-        statusFn(`Hover over the spot to watch -- capturing in ${secondsLeft}...`);
+        xpAutoSyncStatusText(`Hover over the RuneMetrics tab -- capturing in ${secondsLeft}...`);
         return;
       }
       if (!lastPos) {
         stopRegionHover("Didn't catch your cursor over the game -- make sure the mouse is inside the RS window, then try again.");
         return;
       }
-      const { w, h } = clampedRegionSize(kind);
+      const { w, h } = clampedXpRegionSize();
       const region = {
         x: Math.round((window.alt1.rsX || 0) + lastPos.x - w / 2),
         y: Math.round((window.alt1.rsY || 0) + lastPos.y - h / 2),
         w,
         h,
       };
-      if (kind === "ability") {
-        saveCalibration(ABILITY_CALIBRATION_KEY, region);
-        stopRegionHover("Calibrated. Enable the checkbox to start watching.");
-        if (settings.autosyncEnabled) startAbilityWatcher();
-      } else {
-        saveCalibration(XP_CALIBRATION_KEY, region);
-        stopRegionHover('Calibrated. Click "Sync now" whenever you want to re-sync from it.');
-      }
+      saveCalibration(XP_CALIBRATION_KEY, region);
+      stopRegionHover('Calibrated. Click "Sync now" whenever you want to re-sync from it.');
     }, 1000);
   }
 
-  calibrateBtn.addEventListener("click", () => {
-    if (regionHoverActive && regionHoverKind === "ability") stopRegionHover("Cancelled.");
-    else if (!regionHoverActive) startRegionHover("ability");
-  });
   calibrateXpBtn.addEventListener("click", () => {
-    if (regionHoverActive && regionHoverKind === "xp") stopRegionHover("Cancelled.");
-    else if (!regionHoverActive) startRegionHover("xp");
+    if (regionHoverActive) stopRegionHover("Cancelled.");
+    else startRegionHover();
   });
+
+  // --- sync from RuneMetrics/XP, one-shot ---
+  // This arms the watcher, waits for the very next detected pixel
+  // change, syncs to it, and disarms itself immediately -- it does not
+  // keep watching in the background. An earlier always-on version
+  // re-synced on anything that changed in the watched area (other
+  // tracked skills' XP/h recalculating on their own schedule, a row
+  // highlighting on mouse hover, the scrollbar), which had nothing to do
+  // with the player's own tick timing and made the count look like it
+  // kept "resetting" instead of counting properly. One-shot avoids that
+  // by only ever catching exactly one change per click.
+  //
+  // The trigger threshold is set to fire on *any* detected change in the
+  // watched box, however small, rather than requiring a big, obvious
+  // spike: something in the RuneMetrics tab updates on every game tick
+  // regardless of whether the tracked skill's own number visibly moved
+  // (XP/h recalculating, other rows, etc.), so the most reliable signal
+  // is "did anything change at all", not "did an XP value specifically
+  // change by a lot".
+  const XP_SYNC_TIMEOUT_MS = 8000;
+  let xpSyncWaiting = false;
+  let xpSyncTimeoutId = null;
+
+  function stopXpSyncOnce(status) {
+    xpSyncWaiting = false;
+    if (xpWatcher) {
+      xpWatcher.stop();
+      xpWatcher = null;
+    }
+    if (xpSyncTimeoutId) {
+      clearTimeout(xpSyncTimeoutId);
+      xpSyncTimeoutId = null;
+    }
+    xpSyncOnceBtn.textContent = "Sync now from XP/RuneMetrics";
+    if (status !== undefined) xpAutoSyncStatusText(status);
+  }
+
+  function startXpSyncOnce() {
+    const region = loadCalibration(XP_CALIBRATION_KEY);
+    if (!region) {
+      xpAutoSyncStatusText("Calibrate the RuneMetrics tab first.");
+      return;
+    }
+    xpSyncWaiting = true;
+    xpSyncOnceBtn.textContent = "Cancel (waiting for next update...)";
+    xpAutoSyncStatusText("Watching -- do the action you want to sync to now.");
+    xpWatcher = new AutoSyncWatcher(
+      region,
+      () => {
+        triggerSync();
+        stopXpSyncOnce("Synced.");
+      },
+      () => {},
+      "RuneMetrics update"
+    );
+    xpWatcher.triggerCount = 0; // fire on any detected change at all, not just a big one
+    xpWatcher.start();
+    xpSyncTimeoutId = setTimeout(() => {
+      stopXpSyncOnce("Didn't catch an update in time -- make sure RuneMetrics is visible and try again.");
+    }, XP_SYNC_TIMEOUT_MS);
+  }
+
+  xpSyncOnceBtn.addEventListener("click", () => {
+    if (xpSyncWaiting) {
+      stopXpSyncOnce("Cancelled.");
+    } else {
+      startXpSyncOnce();
+    }
+  });
+
+  {
+    const existingXp = loadCalibration(XP_CALIBRATION_KEY);
+    xpAutoSyncStatusText(existingXp ? "Calibrated. Click \"Sync now\" whenever you want to re-sync from it." : "Not calibrated yet.");
+  }
 });

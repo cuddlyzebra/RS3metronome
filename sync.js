@@ -4,44 +4,39 @@
 // see an XP drop or a GCD start, the same technique real OSRS tick tools
 // use, and it works regardless of UI layout or scale.
 //
-// The experimental extras are two auto-sync sources, both built on the
-// same idea: watch a calibrated screen region for a sudden pixel change,
-// and treat that instant as the new tick 0. Neither needs to read or
-// understand what's actually there (no OCR) -- just "did enough of this
-// region suddenly look different", which is cheap to poll many times a
-// second by counting changed samples rather than comparing whole images:
+// The experimental extra is auto-sync from the RuneMetrics tab: watch a
+// calibrated screen region for a sudden pixel change, and treat that
+// instant as the new tick 0. It doesn't need to read or understand
+// what's actually there (no OCR) -- just "did enough of this region
+// suddenly look different", which is cheap to poll many times a second
+// by counting changed samples rather than comparing whole images.
 //
-//   - An XP drop appearing -- or any value updating in the RuneMetrics
-//     tab, which the game only ever does on a tick -- is a patch of
-//     screen going from unchanged to visibly different all at once.
-//     RuneMetrics is a good target for this precisely because it can be
-//     calibrated loosely: watching the *whole panel* rather than one
-//     exact row works fine, since any of its numbers changing is itself
-//     the tick signal, and a changed-sample count (rather than an
-//     average over the region) stays sensitive to a small patch of
-//     updated digits even inside a much bigger watched box.
-//   - A GCD starting sweeps a cooldown overlay across an ability's icon,
-//     a large, sudden change confined to that one icon.
+// Any value updating in the RuneMetrics tab -- an XP total, an XP/h
+// rate, anything -- only ever happens on a game tick, which is what
+// makes it useful as a sync source: it doesn't matter which number
+// moves, only that *something* in the panel did. That's also why it can
+// be calibrated loosely -- watching the *whole panel* rather than one
+// exact row works fine, and a changed-sample count (rather than an
+// average over the region) stays sensitive to a small patch of updated
+// digits even inside a much bigger watched box.
 //
-// Since ability bar position, XP/RuneMetrics position, and UI scale are
-// all up to each player, there's no fixed landmark to hard-code for
-// either -- this asks the player to calibrate once per source, by
-// hovering their mouse over the target spot in-game (app.js reads
-// alt1.mousePosition for that, live, with a short in-game preview rect
-// so they can see the watched box before it locks in). Both calibrations
-// are stored under their own key so they don't overwrite each other.
+// Since RuneMetrics' position and UI scale are up to each player,
+// there's no fixed landmark to hard-code -- this asks the player to
+// calibrate once, by hovering their mouse over the RuneMetrics tab
+// in-game (app.js reads alt1.mousePosition for that, live, with a short
+// in-game preview rect so they can see the watched box before it locks
+// in).
 //
-// The ability-GCD source runs continuously once enabled, re-syncing on
-// every detected sweep, which is fine because its target (one ability
-// icon) rarely changes for reasons unrelated to a GCD starting. The
-// RuneMetrics/XP source is used one-shot instead (app.js arms it, waits
+// This is used one-shot rather than continuously (app.js arms it, waits
 // for the next detected change, then disarms itself): watching a whole
-// RuneMetrics panel continuously turned out to false-trigger on other
-// tracked skills' XP/h recalculating on their own schedule, row hover
-// highlighting, and the like, each of which would silently re-sync the
-// metronome and made the count look like it kept resetting rather than
-// counting properly. One-shot avoids that by only ever catching exactly
-// one change per click.
+// RuneMetrics panel continuously turned out to false-trigger on
+// anything that changed in it for reasons unrelated to the moment you
+// actually want to sync to, and made the count look like it kept
+// resetting rather than counting properly. One-shot avoids that by only
+// ever catching exactly one change per click -- and since practically
+// any change in the panel is itself a valid tick signal, the watcher is
+// tuned (see app.js) to fire on the very first detected change at all,
+// however small.
 
 function loadCalibration(storageKey) {
   try {
@@ -93,15 +88,15 @@ class AutoSyncWatcher {
     this.label = label || "change";
     this.pollMs = 45;
     // Detection is based on a *count* of samples that changed a lot
-    // between polls, not an average change across the whole region. A
-    // region can be anything from a tight 34x34 ability icon (where a
-    // GCD sweep changes most of the box) to an entire RuneMetrics panel
-    // (where a tick's worth of updated digits changes only a small
-    // fraction of a much bigger box) -- averaging would dilute a small
-    // update to nothing in a big box, but a count of changed samples
-    // stays meaningful regardless of how much unchanged UI surrounds it.
+    // between polls, not an average change across the whole region --
+    // a region can be a small, tightly calibrated box or an entire
+    // RuneMetrics panel where a tick's worth of updated digits changes
+    // only a small fraction of a much bigger box. Averaging would
+    // dilute a small update to nothing in a big box, but a count of
+    // changed samples stays meaningful regardless of how much unchanged
+    // UI surrounds it.
     this.perSampleThreshold = 45; // summed abs R+G+B delta to count one sample as "changed"
-    this.triggerCount = 14; // changed samples needed to fire while armed
+    this.triggerCount = 14; // changed samples needed to fire while armed (callers may override, e.g. to fire on any change at all)
     this.quietCount = 4; // changed samples below which the region counts as "quiet" again
     this.quietStreakNeeded = 3;
     this._timer = null;

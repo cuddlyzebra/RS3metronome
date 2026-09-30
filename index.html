@@ -57,13 +57,13 @@
       <label for="sync-offset-input">Sync offset (ms)</label>
       <input type="number" id="sync-offset-input" min="-600" max="600" step="10" value="0" />
     </div>
-    <div class="hint-text offset-hint">Shifts exactly when a sync (tap or auto) lands. If a sync consistently fires too early -- e.g. auto-sync catching an ability's click animation rather than the cooldown actually starting -- raise this. If tap-to-sync consistently lands late because of your own reaction time, lower it (negative is earlier).</div>
+    <div class="hint-text offset-hint">Shifts exactly when a sync (tap or auto) lands. If RuneMetrics auto-sync consistently lands a tick late (it confirms slightly after the fact), lower this. If tap-to-sync consistently lands late because of your own reaction time, lower it too (negative is earlier).</div>
   </fieldset>
 
   <fieldset>
-    <legend>Auto-sync from XP drop (experimental)</legend>
+    <legend>Auto-sync from RuneMetrics (experimental)</legend>
     <div class="footer-note">
-      Watches a region of your screen for the sudden pixel change that happens the instant XP updates, and lets you re-sync the metronome to that moment on demand. Calibrate this on a screen-fixed spot -- your XP orb near the top of screen, or (recommended, works at any level) the whole RuneMetrics tab with "Show precise values" and "Show XP change value" on -- never the text that floats above your character, which moves with the camera and won't work here.
+      Watches your RuneMetrics tab for the pixel change that happens the instant it updates, and lets you re-sync the metronome to that moment on demand. RuneMetrics only ever updates on a game tick, and it doesn't matter which value moves -- open it (F7, if that's not bound to anything else) with "Show precise values" and "Show XP change value" on, and calibrate a box wide/tall enough to cover the panel. This works at any level, including 200m XP.
     </div>
     <div class="setting-row">
       <label for="xp-width">Spot size (px)</label>
@@ -72,31 +72,10 @@
       <input type="number" id="xp-height" min="8" max="800" value="50" />
       <span class="hint-text">height</span>
     </div>
-    <div class="hint-text">Set the size above first (widen it to cover the whole RuneMetrics panel if that's your target), then click below and hover the spot in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
-    <button id="calibrate-xp-btn">Calibrate XP orb/indicator (hover)...</button>
+    <div class="hint-text">Set the size above first (widen it to cover the whole RuneMetrics panel), then click below and hover it in-game -- a live outline follows your cursor and locks in after a few seconds.</div>
+    <button id="calibrate-xp-btn">Calibrate RuneMetrics tab (hover)...</button>
     <button id="xp-sync-once-btn">Sync now from XP/RuneMetrics</button>
     <div id="xp-autosync-status" class="footer-note"></div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Auto-sync from ability GCD (experimental)</legend>
-    <div class="footer-note">
-      Watches a small region of your screen for the sudden pixel change that happens the instant an ability's GCD cooldown starts sweeping across its icon, and re-syncs the metronome phase to that moment automatically. Needs a one-time calibration since everyone's ability bar sits somewhere different.
-    </div>
-    <div class="setting-row">
-      <label for="ability-width">Spot size (px)</label>
-      <input type="number" id="ability-width" min="8" max="800" value="34" />
-      <span class="hint-text">width</span>
-      <input type="number" id="ability-height" min="8" max="800" value="34" />
-      <span class="hint-text">height</span>
-    </div>
-    <div class="hint-text">Click below, then hover your mouse over the ability icon whose cooldown sweep you want watched -- a live outline follows your cursor and locks in after a few seconds.</div>
-    <button id="calibrate-btn">Calibrate ability slot (hover)...</button>
-    <label class="checkbox-row">
-      <input type="checkbox" id="autosync-checkbox" />
-      Enable auto-sync from calibrated slot
-    </label>
-    <div id="autosync-status" class="footer-note"></div>
   </fieldset>
 
   <fieldset>

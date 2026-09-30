@@ -6,11 +6,10 @@
 // Alt1 overlay coordinates are relative to the RS client window itself
 // (0,0 = the game window's own top-left), NOT absolute desktop
 // coordinates -- unlike the pixel-region reading in sync.js, which uses
-// absolute screen coordinates for toData()/findSubimage(). That's why the
-// calibration click position here is stored as-is (the pixel offset
-// within the captured screenshot IS already RS-window-relative), with no
-// origin added, whereas the ability-slot calibration adds
-// originX/originY to get absolute coordinates.
+// absolute screen coordinates for toData(). That's why this position is
+// stored exactly as read from alt1.mousePosition (already
+// RS-window-relative), whereas the RuneMetrics region calibration in
+// app.js adds alt1.rsX/rsY to get absolute screen coordinates.
 //
 // An overlay draw call only persists on screen for its own `time`
 // argument (ms) before Alt1 removes it -- there's no "leave this up
