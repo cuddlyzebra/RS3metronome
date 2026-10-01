@@ -64,6 +64,30 @@ class TickEngine {
     this._scheduleNext(0);
   }
 
+  // Shifts the timing of future ticks by wholeTicks * 600ms, without
+  // touching the current count or restarting anything. A positive value
+  // delays the next tick (holds the number on screen a bit longer, like
+  // a brief pause); a negative value brings it forward (catches the
+  // count up, firing the pending tick sooner, even immediately if it
+  // would now be overdue). Either way counting then continues exactly
+  // as before, just shifted in time -- useful for lining a specific
+  // number up with the moment you want to act on it, or for nudging
+  // your count to match someone else's.
+  //
+  // This only re-targets the tick that's already scheduled next
+  // (tickIndex + 1); it doesn't change which tick that is, so repeated
+  // clicks before it fires just keep adjusting the same one rather than
+  // skipping multiple ticks at once.
+  nudge(wholeTicks) {
+    if (!this.running) return;
+    this.startTime += wholeTicks * TICK_MS;
+    if (this.timerId !== null) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    this._scheduleNext(this.tickIndex + 1);
+  }
+
   _scheduleNext(nextIndex) {
     const target = this.startTime + nextIndex * TICK_MS;
     const delay = Math.max(0, target - performance.now());

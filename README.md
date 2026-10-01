@@ -54,6 +54,15 @@ Two steps, and that's the whole workflow:
 
   One quirk to know about: RuneMetrics can land a tick or so later than the actual in-game event (the game confirms it slightly after the fact). If it consistently lands a tick late, set **Sync offset (ms)** to -600 to correct for it.
 
+### Nudging the beat
+
+Once it's running, "Skip -1 tick" and "Pause +1 tick" shift the beat by one tick in either direction without restarting or re-syncing anything -- useful for two things:
+
+- **Lining a specific number up with the moment you want to act.** If the count that lands right when you need it is always one off, nudge it into place rather than waiting for a fresh sync.
+- **Matching someone else's count.** If you and a friend are both running the metronome and your counts have drifted apart by a tick or two, nudge yours to match theirs so you're both acting on the same number.
+
+Click more than once for more than one tick. "Pause" holds the current number on screen a little longer before the next tick; "Skip" brings the next tick forward, catching the count up sooner (immediately, if it's now overdue). Either way, counting then continues exactly as before, just shifted in time -- the tick target, mode, and everything else are untouched.
+
 ### Transparent overlay counter
 
 The count can also be drawn directly on top of the game itself -- just the number, no background or window around it, positioned wherever you like. Click "Place overlay position (hover)...", then hover your mouse over the game where you want the counter -- a live preview follows your cursor in real time, and after a few seconds it locks in wherever you were last hovering (a status line counts down so you know when). Click the button again (it becomes "Cancel") if you want to back out mid-countdown. Then tick "Show overlay counter in-game". It changes instantly on each tick, same as the number in the app window. Size and color (gold/white/red/green/cyan) are both adjustable.

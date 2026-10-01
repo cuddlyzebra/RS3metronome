@@ -51,6 +51,17 @@ button {
 }
 button:hover { background: #262019; }
 
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+button.secondary {
+  font-size: 12px;
+  padding: 6px;
+}
+
 button.primary {
   background: #5c4a2e;
   border-color: #ffcc33;
@@ -122,6 +133,13 @@ button.primary.waiting:hover { background: #5c4826; }
   gap: 8px;
 }
 .transport button { margin-top: 0; }
+
+.nudge-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.nudge-row button { margin-top: 0; }
 
 .setting-row {
   display: flex;

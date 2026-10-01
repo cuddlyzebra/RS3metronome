@@ -49,6 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- element refs ---
   const startStopBtn = document.getElementById("start-stop-btn");
+  const nudgeBackBtn = document.getElementById("nudge-back-btn");
+  const nudgeForwardBtn = document.getElementById("nudge-forward-btn");
   const tickFace = document.getElementById("tick-face");
   const tickCountEl = document.getElementById("tick-count");
   const tickTargetLabel = document.getElementById("tick-target-label");
@@ -122,6 +124,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // during that wait; the engine only actually starts once the watcher
   // catches a change (see triggerSync()). With nothing calibrated yet
   // there's no sync target, so it just runs freely instead.
+  // The nudge buttons only make sense once the engine is actually
+  // counting (not idle, not still waiting on a sync) -- there's nothing
+  // to shift yet otherwise.
+  function updateNudgeButtonsEnabled() {
+    nudgeBackBtn.disabled = !engine.running;
+    nudgeForwardBtn.disabled = !engine.running;
+  }
+
   function setRunning(running) {
     if (running) {
       const region = loadCalibration(XP_CALIBRATION_KEY);
@@ -130,6 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         startStopBtn.textContent = "Stop";
         startStopBtn.classList.add("running");
         xpAutoSyncStatusText("Not calibrated -- running freely. Do Step 1 to sync automatically next time.");
+        updateNudgeButtonsEnabled();
         return;
       }
       startStopBtn.textContent = "Cancel (waiting to sync...)";
@@ -145,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
       overlay.clear();
       if (xpSyncWaiting) stopXpSyncOnce(wasWaiting ? "Cancelled." : "Stopped.");
     }
+    updateNudgeButtonsEnabled();
   }
 
   // A click means "stop/cancel" whenever anything is currently running
@@ -165,7 +177,18 @@ document.addEventListener("DOMContentLoaded", () => {
     startStopBtn.textContent = "Stop";
     startStopBtn.classList.remove("waiting");
     startStopBtn.classList.add("running");
+    updateNudgeButtonsEnabled();
   }
+
+  // Shift the beat by one tick in either direction without restarting --
+  // handy for landing a specific number at the moment you want to act,
+  // or for matching your count to someone else's. Click more than once
+  // for more than one tick; see TickEngine.nudge() for exactly how this
+  // works under the hood.
+  nudgeBackBtn.addEventListener("click", () => engine.nudge(-1));
+  nudgeForwardBtn.addEventListener("click", () => engine.nudge(1));
+
+  updateNudgeButtonsEnabled();
 
   // --- settings wiring ---
   modeSelect.addEventListener("change", () => {
